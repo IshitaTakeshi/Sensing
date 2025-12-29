@@ -1,0 +1,19 @@
+# Managed by CodingGuideline (version: 912a37af52c8b3e827fced18fe950d2cb100914c)
+# Do not edit manually - changes may be overwritten
+# To update: run setup.sh update
+name: "Pull Request Labeler"
+on:
+  pull_request_target:
+    types: [opened]
+jobs:
+  labeler:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v4
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/labeler.yml
+          sync-labels: false

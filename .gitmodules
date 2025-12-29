@@ -1,0 +1,3 @@
+[submodule ".coding-guideline"]
+	path = .coding-guideline
+	url = git@github.com:IshitaTakeshi/CodingGuideline.git

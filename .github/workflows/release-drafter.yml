@@ -1,0 +1,26 @@
+# Managed by CodingGuideline (version: 912a37af52c8b3e827fced18fe950d2cb100914c)
+# Do not edit manually - changes may be overwritten
+# To update: run setup.sh update
+name: Release Drafter
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update_release_draft:
+    permissions:
+      contents: write
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v5
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
