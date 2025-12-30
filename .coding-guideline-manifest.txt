@@ -1,9 +1,8 @@
-version: 912a37af52c8b3e827fced18fe950d2cb100914c
+version: 637a4f04014a6d7d18b717cd9bff305afc3483ac
 .github/workflows/auto-label-major.yml
 .github/workflows/check-pr-title.yml
 .github/workflows/labeler.yml
 .github/workflows/release-drafter.yml
-.github/workflows/test-setup-script.yml
 .github/ISSUE_TEMPLATE/bug_report.md
 .github/ISSUE_TEMPLATE/feature_request.md
 .github/pull_request_template.md
