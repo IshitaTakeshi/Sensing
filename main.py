@@ -4,7 +4,7 @@ import struct
 import sys
 
 # ==============================================================================
-# 1. 定数定義
+# 1. Constant Definitions
 #    Reference: https://cdn.sparkfun.com/assets/d/4/6/d/f/ism330dhcx_Datasheet.pdf
 # ==============================================================================
 SPI_READ_BIT = 0x80 
@@ -14,7 +14,7 @@ REG_WHO_AM_I = 0x0F
 REG_CTRL1_XL = 0x10
 REG_CTRL2_G  = 0x11
 REG_CTRL3_C  = 0x12
-REG_CTRL7_G  = 0x16  # 追加: ジャイロ設定の確認用
+REG_CTRL7_G  = 0x16  # Additional: For gyroscope configuration verification
 REG_OUTX_L_G = 0x22
 
 DEVICE_ID = 0x6B 
@@ -26,11 +26,11 @@ class ISM330DHCX:
         self.spi.max_speed_hz = 5000000 
         self.spi.mode = 0
 
-        # 物理量変換係数 (Datasheet Page 16, Table 3 & 4)
+        # Physical quantity conversion factors (Datasheet Page 16, Table 3 & 4)
         self.accel_sensitivity = 0.061  # FS +/-2g -> 0.061 mg/LSB
         self.gyro_sensitivity = 70.0    # FS +/-2000dps -> 70 mdps/LSB
 
-        # ゼロ点補正用オフセット
+        # Zero-point calibration offset
         self.gyro_offset = [0.0, 0.0, 0.0] 
 
     def _read_byte(self, reg_addr):
@@ -49,7 +49,7 @@ class ISM330DHCX:
 
     def debug_dump_regs(self):
         """
-        [デバッグ用] 重要なレジスタの生値を表示
+        [Debug] Display raw values of important registers
         """
         print("\n--- Register Debug Dump ---")
         regs = {
@@ -81,13 +81,13 @@ class ISM330DHCX:
         self._write_byte(REG_CTRL1_XL, 0x40)
         
         # Gyro: 104Hz, 2000dps (0x4C)
-        # 参照: Datasheet Page 48. FS[1:0] = 11 for 2000dps
+        # Reference: Datasheet Page 48. FS[1:0] = 11 for 2000dps
         self._write_byte(REG_CTRL2_G, 0x4C)
 
-        # CTRL7_G (Page 52): High Performance Modeを確認
+        # CTRL7_G (Page 52): Verify High Performance Mode
         # Bit 7 (G_HM_MODE): 0 = High Performance (Default), 1 = Low Power
         # Bit 6 (HP_EN_G): 0 = HPF Disabled (Default)
-        # デフォルト 0x00 でOKだが、念のため書き込み
+        # Default 0x00 is OK, but write it to be safe
         self._write_byte(REG_CTRL7_G, 0x00)
 
         time.sleep(0.1)
@@ -95,29 +95,29 @@ class ISM330DHCX:
 
     def calibrate_gyro(self, samples=100):
         """
-        [修正] 起動時に静止状態の誤差を計測してオフセットとする
+        Measure and set offset from stationary state error at startup
         """
-        print(f"キャリブレーション中... ({samples}サンプル取得)")
+        print(f"Calibrating... ({samples} samples)")
         sum_x, sum_y, sum_z = 0.0, 0.0, 0.0
-        
+
         for _ in range(samples):
-            # オフセット適用前の生の物理量を取得したいので内部メソッドを呼ぶか、
-            # ここで簡易的に計算
-            _, gyro = self.read_raw_values() 
+            # Get raw physical values before applying offset
+            # Call internal method or calculate simply here
+            _, gyro = self.read_raw_values()
             sum_x += gyro[0]
             sum_y += gyro[1]
             sum_z += gyro[2]
             time.sleep(0.01)
-        
+
         self.gyro_offset[0] = sum_x / samples
         self.gyro_offset[1] = sum_y / samples
         self.gyro_offset[2] = sum_z / samples
-        
-        print(f"キャリブレーション完了: Offset [dps] X:{self.gyro_offset[0]:.3f}, Y:{self.gyro_offset[1]:.3f}, Z:{self.gyro_offset[2]:.3f}")
+
+        print(f"Calibration complete: Offset [dps] X:{self.gyro_offset[0]:.3f}, Y:{self.gyro_offset[1]:.3f}, Z:{self.gyro_offset[2]:.3f}")
 
     def read_raw_values(self):
         """
-        オフセット適用前の物理量を取得
+        Get physical values before applying offset
         """
         raw_bytes = self._read_block(REG_OUTX_L_G, 12)
         raw_data = struct.unpack('<hhhhhh', bytes(raw_bytes))
@@ -136,22 +136,22 @@ class ISM330DHCX:
 
     def read_data(self):
         """
-        オフセット補正済みのデータを取得
+        Get offset-corrected data
         """
         (ax, ay, az), (gx, gy, gz) = self.read_raw_values()
-        
-        # キャリブレーション値を引く
+
+        # Subtract calibration values
         gx -= self.gyro_offset[0]
         gy -= self.gyro_offset[1]
         gz -= self.gyro_offset[2]
-        
+
         return (ax, ay, az), (gx, gy, gz)
 
     def debug_print_raw_hex(self):
         """
-        [デバッグ用] 変換前のRawデータをHexで表示
+        [Debug] Display raw data in hex before conversion
         """
-        raw_bytes = self._read_block(REG_OUTX_L_G, 6) # Gyroのみ6バイト
+        raw_bytes = self._read_block(REG_OUTX_L_G, 6) # Gyro only, 6 bytes
         # Python 3.8+ for hex() with separator
         hex_str = ' '.join(f'{b:02X}' for b in raw_bytes)
         raw_val = struct.unpack('<hhh', bytes(raw_bytes))
@@ -163,27 +163,27 @@ if __name__ == "__main__":
     if not sensor.begin():
         sys.exit(1)
     
-    # デバッグ: 設定レジスタの確認
+    # Debug: Verify configuration registers
     sensor.debug_dump_regs()
-    
-    # 修正: キャリブレーション実行
+
+    # Execute calibration
     sensor.calibrate_gyro()
 
-    print("計測開始 (Ctrl+C で停止)...")
+    print("Starting measurements (Ctrl+C to stop)...")
     print("Accel (g) [X, Y, Z] | Gyro (dps) [X, Y, Z] | [Debug Info]")
     print("-" * 70)
 
     try:
         while True:
-            # 補正済みデータ
+            # Corrected data
             (ax, ay, az), (gx, gy, gz) = sensor.read_data()
-            
+
             print(f"A: {ax:6.3f} {ay:6.3f} {az:6.3f} | G: {gx:7.2f} {gy:7.2f} {gz:7.2f}", end="")
-            
-            # 5回に1回くらい生Hexを表示してデバッグ（不要ならコメントアウト）
+
+            # Display raw hex for debugging every 5 times or so (comment out if not needed)
             # sensor.debug_print_raw_hex()
-            print() # 改行
-            
+            print() # Newline
+
             time.sleep(0.1)
             
     except KeyboardInterrupt:
