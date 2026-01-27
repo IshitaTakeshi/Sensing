@@ -1,4 +1,4 @@
-<!-- Managed by CodingGuideline (version: 637a4f04014a6d7d18b717cd9bff305afc3483ac) -->
+<!-- Managed by CodingGuideline (version: 3bcdf2e0ab4e4759e9b8daba31a326efd0b3a9a0) -->
 <!-- Do not edit manually - changes may be overwritten -->
 <!-- To update: run setup.sh update -->
 # Contributing Guide
@@ -38,10 +38,11 @@ Develop locally. Since changes will be squash merged, commit messages during wor
 
 ### Step 4: Create a Pull Request (PR)
 Create a PR on GitHub.
-* **Title**: Must strictly follow **[Naming Convention](#3-naming-convention-and-semver-conventional-commits)** (checked by CI).
-* **Body**: Include `Closes #123` to link to the Issue. Describe changes, screenshots, and test methods.
+* **Title**: Must strictly follow **[Naming Convention](#5-naming-convention-and-semver-conventional-commits)** (checked by CI).
+* **Body**: Use the PR template to provide complete context. See **[PR Description Best Practices](#4-pr-description-best-practices)** below.
 * **Labels**: Automatically assigned based on branch name.
     * ⚠️ **For breaking changes**: The `major` label is automatically assigned when the PR title contains `!`.
+* **Draft PRs**: If your work is not ready for review, create a Draft PR. This signals to reviewers that the code is still in progress and allows early feedback without formal review.
 
 ### Step 5: Review & Merge
 * CI (Lint PR, Tests) must pass.
@@ -54,7 +55,89 @@ Create a PR on GitHub.
 
 ---
 
-## 3. Naming Convention and SemVer (Conventional Commits)
+## 3. Issue Description Best Practices
+
+A good issue is **self-documenting**: anyone should be able to understand it without prior context, even the author returning months later.
+
+### Key Principles
+
+* **Standalone Comprehension**: Write as if the reader knows nothing about your project. Include enough background that the issue makes sense on its own.
+* **Answer the 5 Ws + H**: Who is affected? What is the problem/feature? When did it start/when is it needed? Where does it occur? Why does it matter? How will we verify success?
+* **Be Specific**: Vague issues lead to misunderstandings. Use concrete examples, exact error messages, and measurable criteria.
+* **Preserve Decision Context**: Document alternatives considered and why they were rejected. This prevents revisiting the same decisions later.
+
+### Bug Report Sections
+
+| Section | Purpose | Required |
+| :--- | :--- | :---: |
+| **Bug Description** | Clear summary of what's broken | Yes |
+| **Impact / Severity** | Who is affected and how badly | Yes |
+| **Steps to Reproduce** | Exact steps to trigger the bug | Yes |
+| **Expected Behavior** | What should happen | Yes |
+| **Current Behavior** | What actually happens | Yes |
+| **First Occurrence** | When the bug started (helps identify cause) | Yes |
+| **Frequency** | How often it occurs | Yes |
+| **Workaround** | Temporary solution if any | Yes |
+| **Environment** | OS, browser, version details | Yes |
+| **Error Logs / Screenshots** | Evidence for debugging | If applicable |
+| **Related Issues** | Links to similar or blocking issues | If applicable |
+
+### Feature Request Sections
+
+| Section | Purpose | Required |
+| :--- | :--- | :---: |
+| **User Story / Problem Statement** | Who needs this and why (persona-based) | Yes |
+| **Purpose / Background** | Context and motivation for the feature | Yes |
+| **Acceptance Criteria** | Measurable conditions for completion | Yes |
+| **Out of Scope** | What is explicitly NOT included | Yes |
+| **Success Metrics** | How to measure if the feature works | Yes |
+| **Dependencies** | What must exist first | Yes |
+| **Alternatives Considered** | Other approaches and why rejected | Yes |
+| **Risks / Concerns** | Potential problems or challenges | Yes |
+| **Implementation Overview** | Technical approach suggestions | Optional |
+| **References** | Links to designs, docs, related issues | If applicable |
+
+### Writing Tips
+
+* **For bugs**: Include exact error messages, not paraphrased versions. Screenshots are worth a thousand words.
+* **For features**: A clear user story prevents building the wrong thing. "As a user, I want X so that Y" forces you to articulate the real need.
+* **For both**: Link to related issues liberally. Future readers will thank you for the context trail.
+
+---
+
+## 4. PR Description Best Practices
+
+A good PR tells the story of your change: not just *what* changed, but *why* it changed and *how* to verify it.
+
+### Key Principles
+
+* **Keep PRs Focused**: Each PR should address a single concern. Don't mix unrelated changes (e.g., a bug fix with a large refactor). Smaller PRs are easier to review and less risky to merge.
+* **Provide Context**: Explain the problem you're solving. The Issue link provides tracking, but reviewers benefit from understanding the "why" directly in the PR.
+* **Be Specific with Test Steps**: Write exact steps that a reviewer can follow to verify your changes. Avoid vague instructions like "test the feature."
+
+### PR Template Sections
+
+| Section | Purpose | Required |
+| :--- | :--- | :---: |
+| **Related Issue** | Links PR to the tracking Issue for traceability | Yes |
+| **Context** | Explains why this change is needed | Yes |
+| **Changes** | High-level summary of what was modified | Yes |
+| **Type of Change** | Helps reviewers understand the scope and risk | Yes |
+| **Test Steps** | Step-by-step verification instructions | Yes |
+| **Screenshots** | Visual proof for UI changes (Before/After) | If applicable |
+| **Checklist** | Self-review confirmation | Yes |
+| **Review Focus** | Guides reviewers to areas needing attention | Optional |
+
+### Breaking Changes
+
+When your PR title includes `!` (indicating a breaking change), provide additional context in the PR body:
+* What existing behavior will change
+* Migration steps for users
+* Why the breaking change is necessary
+
+---
+
+## 5. Naming Convention and SemVer (Conventional Commits)
 
 Pull Request titles must follow the **Conventional Commits** format.
 
@@ -114,7 +197,7 @@ The `major` label will be automatically added when the PR is created.
 
 ---
 
-## 4. Automation Setup (for Maintainers)
+## 6. Automation Setup (for Maintainers)
 
 This project uses the following CI configurations to assist with guideline compliance:
 
@@ -124,7 +207,7 @@ This project uses the following CI configurations to assist with guideline compl
 
 ---
 
-## 5. Release Process
+## 7. Release Process
 
 This project uses **[Release Drafter](https://github.com/release-drafter/release-drafter)** to semi-automate the release process.
 

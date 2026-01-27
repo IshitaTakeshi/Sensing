@@ -1,10 +1,19 @@
-version: 637a4f04014a6d7d18b717cd9bff305afc3483ac
+version: 3bcdf2e0ab4e4759e9b8daba31a326efd0b3a9a0
 .github/workflows/auto-label-major.yml
 .github/workflows/check-pr-title.yml
 .github/workflows/labeler.yml
 .github/workflows/release-drafter.yml
-.github/ISSUE_TEMPLATE/bug_report.md
-.github/ISSUE_TEMPLATE/feature_request.md
+.github/ISSUE_TEMPLATE/build.md
+.github/ISSUE_TEMPLATE/chore.md
+.github/ISSUE_TEMPLATE/ci.md
+.github/ISSUE_TEMPLATE/documentation.md
+.github/ISSUE_TEMPLATE/feature.md
+.github/ISSUE_TEMPLATE/fix.md
+.github/ISSUE_TEMPLATE/performance.md
+.github/ISSUE_TEMPLATE/refactor.md
+.github/ISSUE_TEMPLATE/revert.md
+.github/ISSUE_TEMPLATE/style.md
+.github/ISSUE_TEMPLATE/test.md
 .github/pull_request_template.md
 .github/labeler.yml
 .github/release-drafter.yml
