@@ -1,4 +1,4 @@
-# Managed by CodingGuideline (version: 56f5c7a57ca4864820b5a34e973f595706a4aa8d)
+# Managed by CodingGuideline (version: 970065f0c70a60fd1556e7fd8855f5ffbca052f6)
 # Do not edit manually - changes may be overwritten
 # To update: run setup.sh update
 name-template: 'v$RESOLVED_VERSION'
