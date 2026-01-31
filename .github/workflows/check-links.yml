@@ -1,0 +1,24 @@
+# Managed by CodingGuideline (version: 56f5c7a57ca4864820b5a34e973f595706a4aa8d)
+# Do not edit manually - changes may be overwritten
+# To update: run setup.sh update
+name: Check Links
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  linkcheck:
+    name: Check documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --verbose --no-progress '**/*.md'
+          fail: true

@@ -1,5 +1,6 @@
-version: 3bcdf2e0ab4e4759e9b8daba31a326efd0b3a9a0
+version: 56f5c7a57ca4864820b5a34e973f595706a4aa8d
 .github/workflows/auto-label-major.yml
+.github/workflows/check-links.yml
 .github/workflows/check-pr-title.yml
 .github/workflows/labeler.yml
 .github/workflows/release-drafter.yml
@@ -17,4 +18,3 @@ version: 3bcdf2e0ab4e4759e9b8daba31a326efd0b3a9a0
 .github/pull_request_template.md
 .github/labeler.yml
 .github/release-drafter.yml
-CONTRIBUTING.md
