@@ -1,0 +1,1 @@
+"""NMEA parser tests."""
