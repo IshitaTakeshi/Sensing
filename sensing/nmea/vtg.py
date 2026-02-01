@@ -43,23 +43,27 @@ def _extract_mode(fields: list[str]) -> str | None:
     return parse_string_field(fields[9])
 
 
-def _compute_speed_mps(speed_kmh: float | None) -> float | None:
-    """Compute speed in m/s from km/h."""
-    if speed_kmh is None:
+def _compute_speed_meters_per_second(
+    speed_kilometers_per_hour: float | None,
+) -> float | None:
+    """Compute speed in meters per second from kilometers per hour."""
+    if speed_kilometers_per_hour is None:
         return None
-    return speed_kmh / _KILOMETERS_PER_HOUR_TO_METERS_PER_SECOND
+    return speed_kilometers_per_hour / _KILOMETERS_PER_HOUR_TO_METERS_PER_SECOND
 
 
 def _build_vtg_data(fields: list[str]) -> VTGData:
     """Build VTGData from parsed fields."""
-    speed_kmh = parse_float_field(fields[7])
+    speed_kilometers_per_hour = parse_float_field(fields[7])
     mode = _extract_mode(fields)
 
     return VTGData(
-        track_true_deg=parse_float_field(fields[1]),
+        track_true_degrees=parse_float_field(fields[1]),
         speed_knots=parse_float_field(fields[5]),
-        speed_kmh=speed_kmh,
-        speed_mps=_compute_speed_mps(speed_kmh),
+        speed_kilometers_per_hour=speed_kilometers_per_hour,
+        speed_meters_per_second=_compute_speed_meters_per_second(
+            speed_kilometers_per_hour
+        ),
         mode=mode,
         valid=mode is not None and mode != "N",
     )

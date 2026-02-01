@@ -12,10 +12,10 @@ class TestParseVTG:
         sentence = "$GNVTG,054.7,T,034.4,M,005.5,N,010.2,K,A*3B"
         result = parse_vtg(sentence)
         assert result is not None
-        assert result.track_true_deg == pytest.approx(54.7)
+        assert result.track_true_degrees == pytest.approx(54.7)
         assert result.speed_knots == pytest.approx(5.5)
-        assert result.speed_kmh == pytest.approx(10.2)
-        assert result.speed_mps == pytest.approx(10.2 / 3.6)
+        assert result.speed_kilometers_per_hour == pytest.approx(10.2)
+        assert result.speed_meters_per_second == pytest.approx(10.2 / 3.6)
         assert result.mode == "A"
         assert result.valid is True
 
@@ -30,19 +30,19 @@ class TestParseVTG:
     def test_vtg_stationary_empty_track(self):
         result = parse_vtg("$GNVTG,,T,,M,0.0,N,0.0,K,A*3D")
         assert result is not None
-        assert result.track_true_deg is None
+        assert result.track_true_degrees is None
         assert result.speed_knots == pytest.approx(0.0)
-        assert result.speed_kmh == pytest.approx(0.0)
-        assert result.speed_mps == pytest.approx(0.0)
+        assert result.speed_kilometers_per_hour == pytest.approx(0.0)
+        assert result.speed_meters_per_second == pytest.approx(0.0)
         assert result.mode == "A" and result.valid
 
     def test_vtg_all_empty_fields(self):
         result = parse_vtg("$GNVTG,,T,,M,,N,,K,N*32")
         assert result is not None
-        assert result.track_true_deg is None
+        assert result.track_true_degrees is None
         assert result.speed_knots is None
-        assert result.speed_kmh is None
-        assert result.speed_mps is None
+        assert result.speed_kilometers_per_hour is None
+        assert result.speed_meters_per_second is None
         assert result.mode == "N" and not result.valid
 
     def test_vtg_no_mode_indicator(self):
@@ -65,22 +65,23 @@ class TestParseVTG:
     def test_vtg_multi_constellation_prefixes(self):
         prefixes = [("GP", "25"), ("GN", "3B"), ("GL", "39"),
                     ("GA", "34"), ("GB", "37"), ("GQ", "24")]
-        for prefix, cs in prefixes:
-            s = f"${prefix}VTG,054.7,T,034.4,M,005.5,N,010.2,K,A*{cs}"
-            assert parse_vtg(s) is not None, f"Failed: {prefix}"
+        for prefix, checksum in prefixes:
+            sentence = f"${prefix}VTG,054.7,T,034.4,M,005.5,N,010.2,K,A*{checksum}"
+            assert parse_vtg(sentence) is not None, f"Failed: {prefix}"
 
-    def test_vtg_speed_mps_computed_correctly(self):
+    def test_vtg_speed_meters_per_second_computed_correctly(self):
         result = parse_vtg("$GNVTG,000.0,T,000.0,M,000.0,N,036.0,K,A*38")
         assert result is not None
-        assert result.speed_kmh == pytest.approx(36.0)
-        assert result.speed_mps == pytest.approx(10.0)
+        assert result.speed_kilometers_per_hour == pytest.approx(36.0)
+        assert result.speed_meters_per_second == pytest.approx(10.0)
 
-    def test_vtg_speed_mps_none_when_kmh_empty(self):
+    def test_vtg_speed_meters_per_second_none_when_kmh_empty(self):
         result = parse_vtg("$GNVTG,054.7,T,034.4,M,005.5,N,,K,A*16")
-        assert result is not None and result.speed_mps is None
+        assert result is not None and result.speed_meters_per_second is None
 
     def test_vtg_with_crlf(self):
-        assert parse_vtg("$GNVTG,054.7,T,034.4,M,005.5,N,010.2,K,A*3B\r\n") is not None
+        sentence = "$GNVTG,054.7,T,034.4,M,005.5,N,010.2,K,A*3B\r\n"
+        assert parse_vtg(sentence) is not None
 
     def test_zedf9p_vtg_moving(self):
         result = parse_vtg("$GNVTG,325.5,T,337.8,M,0.5,N,0.9,K,D*3A")

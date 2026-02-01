@@ -13,13 +13,13 @@ class GGAData:
     """
 
     utc_time: str | None
-    latitude_deg: float | None
-    longitude_deg: float | None
+    latitude_degrees: float | None
+    longitude_degrees: float | None
     fix_quality: int
     num_satellites: int | None
-    hdop: float | None
-    altitude_m: float | None
-    geoid_height_m: float | None
+    horizontal_dilution_of_precision: float | None
+    altitude_meters: float | None
+    geoid_height_meters: float | None
     valid: bool
 
 
@@ -32,9 +32,9 @@ class VTGData:
     will have valid=False.
     """
 
-    track_true_deg: float | None
+    track_true_degrees: float | None
     speed_knots: float | None
-    speed_kmh: float | None
-    speed_mps: float | None
+    speed_kilometers_per_hour: float | None
+    speed_meters_per_second: float | None
     mode: str | None
     valid: bool

@@ -43,13 +43,13 @@ def _build_gga_data(fields: list[str]) -> GGAData:
 
     return GGAData(
         utc_time=parse_string_field(fields[1]),
-        latitude_deg=convert_to_decimal_degrees(fields[2], fields[3]),
-        longitude_deg=convert_to_decimal_degrees(fields[4], fields[5]),
+        latitude_degrees=convert_to_decimal_degrees(fields[2], fields[3]),
+        longitude_degrees=convert_to_decimal_degrees(fields[4], fields[5]),
         fix_quality=fix_quality,
         num_satellites=parse_int_field(fields[7]),
-        hdop=parse_float_field(fields[8]),
-        altitude_m=parse_float_field(fields[9]),
-        geoid_height_m=parse_float_field(fields[11]),
+        horizontal_dilution_of_precision=parse_float_field(fields[8]),
+        altitude_meters=parse_float_field(fields[9]),
+        geoid_height_meters=parse_float_field(fields[11]),
         valid=fix_quality > 0,
     )
 
