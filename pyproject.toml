@@ -10,5 +10,28 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "mypy>=1.0",
     "pytest>=8.0",
+    "ruff>=0.4",
 ]
+
+[tool.ruff]
+extend = ".coding-guideline/ruff.toml"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "PLR0915",  # Too many statements (tests need many assertions)
+    "E501",     # Line too long (NMEA sentences are long)
+]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false

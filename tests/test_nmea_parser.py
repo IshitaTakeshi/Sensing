@@ -2,9 +2,7 @@
 
 import pytest
 
-from sensing.nmea_parser import (
-    GGAData,
-    VTGData,
+from sensing import (
     parse_gga,
     parse_vtg,
     validate_checksum,

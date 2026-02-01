@@ -1,6 +1,6 @@
 """Sensing package for GNSS and IMU data processing."""
 
-from sensing.nmea_parser import (
+from sensing.nmea import (
     GGAData,
     VTGData,
     parse_gga,
