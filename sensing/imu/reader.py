@@ -1,4 +1,4 @@
-"""LSM6DSO IMU reader using SPI and GPIO DRDY interrupt.
+"""ISM330DHCX IMU reader using SPI and GPIO DRDY interrupt.
 
 Hardware configuration (fixed register values):
     Accelerometer: FS=±2g,      ODR=104 Hz  (CTRL1_XL = 0x40)
@@ -10,6 +10,13 @@ SPI protocol notes:
     - Auto-increment: enabled via CTRL3_C bit 2 (IF_INC=1), allowing
       burst reads across consecutive registers in a single transfer
     - Output registers are little-endian signed 16-bit integers
+
+Sensitivity note:
+    The gyroscope FS=±2000 dps setting does not mean the full-scale range
+    is exactly 2000 dps. The datasheet specifies 70 mdps/LSB (TYP), so the
+    true full-scale at int16 max (32767 LSB) is 32767 * 70e-3 = 2293.7 dps.
+    Always derive physical values from the sensitivity constant, not the
+    range label.
 """
 
 import math
