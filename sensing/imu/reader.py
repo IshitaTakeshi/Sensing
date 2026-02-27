@@ -39,7 +39,7 @@ _SPI_BUS = 0
 _SPI_DEVICE = 0
 _SPI_MAX_SPEED_HZ = 5_000_000
 
-# --- LSM6DSO register addresses ----------------------------------------------
+# --- ISM330DHCX register addresses ------------------------------------------
 
 _REG_INT1_CTRL = 0x0D
 _REG_CTRL1_XL = 0x10
@@ -50,7 +50,7 @@ _REG_CTRL3_C = 0x12
 _REG_OUTX_L_G = 0x22
 
 # --- Sensitivity constants ---------------------------------------------------
-# Derived from LSM6DSO datasheet: Table 2 (accel) and Table 3 (gyro).
+# Derived from ISM330DHCX datasheet: Table 2 (accel) and Table 3 (gyro).
 #
 # Accelerometer FS=±2g: 0.061 mg/LSB
 _ACCEL_SENSITIVITY: float = 0.061e-3 * 9.80665  # m/s² per LSB
@@ -144,7 +144,7 @@ def _read_sample(spi: spidev.SpiDev, timestamp: float) -> IMUData:
 
 
 class IMUReader:
-    """Context manager for reading IMU data from an LSM6DSO over SPI.
+    """Context manager for reading IMU data from an ISM330DHCX over SPI.
 
     Manages SPI and GPIO resources for the lifetime of the ``with`` block.
     On entry the IMU is reset and configured; on exit all resources are
