@@ -86,19 +86,40 @@ def _start_imu(spi: spidev.SpiDev) -> None:
     spi.xfer2([_REG_CTRL1_XL, 0x40])  # Accel 104 Hz, FS=±2g  (starts cycle)
 
 
+def _parse_sample(raw: bytes, timestamp: float) -> IMUData:
+    """Convert 12 raw output register bytes into an IMUData with physical units.
+
+    The 12 bytes contain six consecutive little-endian signed 16-bit integers
+    in the order: gyro X, gyro Y, gyro Z, accel X, accel Y, accel Z.
+    Sensitivities are fixed to the current hardware configuration
+    (accel FS=±2g, gyro FS=±2000 dps).
+
+    Args:
+        raw: Exactly 12 bytes from registers OUTX_L_G (0x22) through
+            OUTZ_H_A (0x2D), with gyro X/Y/Z followed by accel X/Y/Z.
+        timestamp: CLOCK_REALTIME seconds captured at the DRDY interrupt edge.
+
+    Returns:
+        IMUData with accelerometer values in m/s² and gyroscope in rad/s.
+    """
+    gx, gy, gz, ax, ay, az = struct.unpack("<hhhhhh", raw)
+    return IMUData(
+        timestamp=timestamp,
+        accel_x=ax * _ACCEL_SENSITIVITY,
+        accel_y=ay * _ACCEL_SENSITIVITY,
+        accel_z=az * _ACCEL_SENSITIVITY,
+        gyro_x=gx * _GYRO_SENSITIVITY,
+        gyro_y=gy * _GYRO_SENSITIVITY,
+        gyro_z=gz * _GYRO_SENSITIVITY,
+    )
+
+
 def _read_sample(spi: spidev.SpiDev, timestamp: float) -> IMUData:
-    """Read one gyro+accel sample in a single SPI burst and convert to SI.
+    """Issue a 12-byte SPI burst read and delegate conversion to _parse_sample.
 
-    Reads 12 consecutive output registers starting at OUTX_L_G (0x22).
-    Auto-increment (IF_INC=1) must be enabled beforehand.
-
-    Register layout:
-        0x22-0x23: Gyro  X  (OUTX_L_G / OUTX_H_G)
-        0x24-0x25: Gyro  Y
-        0x26-0x27: Gyro  Z
-        0x28-0x29: Accel X  (OUTX_L_A / OUTX_H_A)
-        0x2A-0x2B: Accel Y
-        0x2C-0x2D: Accel Z
+    Sends a single read command starting at OUTX_L_G (0x22) with the read
+    bit set (bit 7). Auto-increment (IF_INC=1) must be enabled beforehand so
+    the device streams all 12 output registers in one transfer.
 
     Args:
         spi: Open SpiDev instance with IF_INC enabled.
@@ -109,16 +130,7 @@ def _read_sample(spi: spidev.SpiDev, timestamp: float) -> IMUData:
     """
     msg = [_REG_OUTX_L_G | 0x80] + [0x00] * 12
     resp = spi.xfer2(msg)
-    gx, gy, gz, ax, ay, az = struct.unpack("<hhhhhh", bytes(resp[1:13]))
-    return IMUData(
-        timestamp=timestamp,
-        accel_x=ax * _ACCEL_SENSITIVITY,
-        accel_y=ay * _ACCEL_SENSITIVITY,
-        accel_z=az * _ACCEL_SENSITIVITY,
-        gyro_x=gx * _GYRO_SENSITIVITY,
-        gyro_y=gy * _GYRO_SENSITIVITY,
-        gyro_z=gz * _GYRO_SENSITIVITY,
-    )
+    return _parse_sample(bytes(resp[1:13]), timestamp)
 
 
 # --- Public API --------------------------------------------------------------
