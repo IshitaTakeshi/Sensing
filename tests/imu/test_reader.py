@@ -1,6 +1,7 @@
-"""Tests for the LSM6DSO IMU reader module."""
+"""Tests for the ISM330DHCX IMU reader module."""
 
 import itertools
+import math
 import struct
 import time
 from types import SimpleNamespace
@@ -160,6 +161,14 @@ class TestParseSample:
         # 16384 LSB * 0.061 mg/LSB ≈ 999 mg; rel=1e-2 allows for LSB rounding
         sample = _parse_sample(_make_raw(az=16384), timestamp=0.0)
         assert sample.accel_z == pytest.approx(9.80665, rel=1e-2)
+
+    def test_full_scale_gyro_is_2293_dps_not_2000(self):
+        # The FS=±2000 dps label is not the true full-scale range.
+        # Datasheet sensitivity: 70 mdps/LSB (TYP), so max int16 (32767 LSB)
+        # gives 32767 * 70e-3 = 2293.69 dps, not 2000 dps.
+        sample = _parse_sample(_make_raw(gz=32767), timestamp=0.0)
+        expected_rad_s = 2293.69 * (math.pi / 180.0)
+        assert sample.gyro_z == pytest.approx(expected_rad_s, rel=1e-3)
 
     def test_timestamp_is_preserved(self):
         ts = 1_700_000_000.123456
