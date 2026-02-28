@@ -8,7 +8,8 @@ class IMUData:
     """A single IMU sample with accelerometer and gyroscope readings.
 
     Attributes:
-        timestamp: CLOCK_REALTIME seconds captured at the DRDY interrupt edge.
+        timestamp_ns: CLOCK_REALTIME nanoseconds captured by the kernel at the
+            DRDY interrupt edge.
 
         accel_x: Acceleration along X-axis in m/s².
         accel_y: Acceleration along Y-axis in m/s².
@@ -27,7 +28,7 @@ class IMUData:
         0.001...
     """
 
-    timestamp: float
+    timestamp_ns: int
     accel_x: float
     accel_y: float
     accel_z: float

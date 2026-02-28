@@ -27,7 +27,7 @@ from types import TracebackType
 
 import gpiod
 import spidev  # type: ignore[import-not-found]
-from gpiod.line import Direction, Edge
+from gpiod.line import Clock, Direction, Edge
 
 from sensing.imu.types import IMUData
 
@@ -93,7 +93,7 @@ def _start_imu(spi: spidev.SpiDev) -> None:
     spi.xfer2([_REG_CTRL1_XL, 0x40])  # Accel 104 Hz, FS=±2g  (starts cycle)
 
 
-def _parse_sample(raw: bytes, timestamp: float) -> IMUData:
+def _parse_sample(raw: bytes, timestamp_ns: int) -> IMUData:
     """Convert 12 raw output register bytes into an IMUData with physical units.
 
     The 12 bytes contain six consecutive little-endian signed 16-bit integers
@@ -104,14 +104,15 @@ def _parse_sample(raw: bytes, timestamp: float) -> IMUData:
     Args:
         raw: Exactly 12 bytes from registers OUTX_L_G (0x22) through
             OUTZ_H_A (0x2D), with gyro X/Y/Z followed by accel X/Y/Z.
-        timestamp: CLOCK_REALTIME seconds captured at the DRDY interrupt edge.
+        timestamp_ns: CLOCK_REALTIME nanoseconds captured by the kernel at the
+            DRDY interrupt edge.
 
     Returns:
         IMUData with accelerometer values in m/s² and gyroscope in rad/s.
     """
     gx, gy, gz, ax, ay, az = struct.unpack("<hhhhhh", raw)
     return IMUData(
-        timestamp=timestamp,
+        timestamp_ns=timestamp_ns,
         accel_x=ax * _ACCEL_SENSITIVITY,
         accel_y=ay * _ACCEL_SENSITIVITY,
         accel_z=az * _ACCEL_SENSITIVITY,
@@ -121,7 +122,7 @@ def _parse_sample(raw: bytes, timestamp: float) -> IMUData:
     )
 
 
-def _read_sample(spi: spidev.SpiDev, timestamp: float) -> IMUData:
+def _read_sample(spi: spidev.SpiDev, timestamp_ns: int) -> IMUData:
     """Issue a 12-byte SPI burst read and delegate conversion to _parse_sample.
 
     Sends a single read command starting at OUTX_L_G (0x22) with the read
@@ -130,14 +131,15 @@ def _read_sample(spi: spidev.SpiDev, timestamp: float) -> IMUData:
 
     Args:
         spi: Open SpiDev instance with IF_INC enabled.
-        timestamp: CLOCK_REALTIME seconds at the triggering DRDY edge.
+        timestamp_ns: CLOCK_REALTIME nanoseconds captured by the kernel at the
+            triggering DRDY edge.
 
     Returns:
         IMUData with accelerometer values in m/s² and gyroscope in rad/s.
     """
     msg = [_REG_OUTX_L_G | 0x80] + [0x00] * 12
     resp = spi.xfer2(msg)
-    return _parse_sample(bytes(resp[1:13]), timestamp)
+    return _parse_sample(bytes(resp[1:13]), timestamp_ns)
 
 
 # --- Public API --------------------------------------------------------------
@@ -197,6 +199,7 @@ class IMUReader:
         settings = gpiod.LineSettings(
             direction=Direction.INPUT,
             edge_detection=Edge.RISING,
+            event_clock=Clock.REALTIME,
         )
         self._chip = gpiod.Chip(self._gpio_chip)
         self._request = self._chip.request_lines(
@@ -234,6 +237,8 @@ class IMUReader:
 
         Returns:
             IMUData with physical-unit accelerometer and gyroscope values.
+            ``timestamp_ns`` is the CLOCK_REALTIME nanosecond value stamped by
+            the kernel at the moment of the DRDY edge.
 
         Raises:
             RuntimeError: If called outside a ``with`` block.
@@ -243,9 +248,9 @@ class IMUReader:
             raise RuntimeError("IMUReader must be used as a context manager.")
         if not self._request.wait_edge_events(timeout=timeout):
             raise TimeoutError(f"No IMU DRDY interrupt within {timeout}s.")
-        self._request.read_edge_events()
-        ts = time.clock_gettime(time.CLOCK_REALTIME)
-        return _read_sample(self._spi, ts)
+        events = self._request.read_edge_events()
+        ts_ns = events[0].timestamp_ns
+        return _read_sample(self._spi, ts_ns)
 
     def __iter__(self) -> Iterator[IMUData]:
         """Yield IMU samples indefinitely, one per DRDY interrupt.
