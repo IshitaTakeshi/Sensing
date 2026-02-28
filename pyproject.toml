@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "gpiod>=2.4.0",
     "spidev>=3.8",
 ]
 
@@ -19,9 +20,12 @@ dev = [
 extend = ".coding-guideline/ruff.toml"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = [
-    "PLR0915",  # Too many statements (tests need many assertions)
-    "E501",     # Line too long (NMEA sentences are long)
+"tests/**" = [
+    "D",        # No docstrings required in tests
+    "S101",     # Allow assert
+    "PLR0913",  # Too many arguments (test helpers may need >5)
+    "PLR0915",  # Too many statements
+    "E501",     # Long lines (NMEA sentences, raw byte literals)
 ]
 
 [tool.mypy]
