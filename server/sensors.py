@@ -1,7 +1,6 @@
 """Background sensor reading loops."""
 
 import asyncio
-import threading
 
 from sensing.gnss import GNSSReader
 from sensing.imu import IMUData, IMUReader
@@ -13,13 +12,14 @@ __all__ = ["run_gnss_loop", "run_imu_loop"]
 _IMU_DECIMATION = 5
 
 
-def run_gnss_loop(loop: asyncio.AbstractEventLoop, stop: threading.Event) -> None:
+def run_gnss_loop(loop: asyncio.AbstractEventLoop, gnss: GNSSReader) -> None:
     """Read GNSS data continuously and broadcast it to the event loop."""
-    with GNSSReader() as gnss:
+    try:
         for data in gnss:
-            if stop.is_set():
-                break
-            broadcast_message(format_gnss_message(data), loop)
+            message = format_gnss_message(data)
+            broadcast_message(message, loop)
+    except EOFError:
+        return
 
 
 def _read_imu_safely(imu: IMUReader) -> IMUData | None:
@@ -43,9 +43,11 @@ def _process_imu_reading(
     return counter + 1
 
 
-def run_imu_loop(loop: asyncio.AbstractEventLoop, stop: threading.Event) -> None:
+def run_imu_loop(loop: asyncio.AbstractEventLoop, imu: IMUReader) -> None:
     """Read IMU data continuously, decimate it, and broadcast."""
     counter = 0
-    with IMUReader() as imu:
-        while not stop.is_set():
+    try:
+        while True:
             counter = _process_imu_reading(imu, loop, counter)
+    except OSError:
+        return

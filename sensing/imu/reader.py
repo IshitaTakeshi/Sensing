@@ -228,6 +228,17 @@ class IMUReader:
             self._spi.close()
             self._spi = None
 
+    def cancel(self) -> None:
+        """Safely interrupt the hardware read cycle.
+
+        Releasing the GPIO line unblocks the underlying wait_edge_events
+        call immediately, raising an OSError in the reading thread.
+        """
+        if self._request is None:
+            return
+        self._request.release()
+        self._request = None
+
     def read(self, timeout: float = 1.0) -> IMUData:
         """Block until the next DRDY interrupt and return one IMU sample.
 

@@ -12,7 +12,7 @@ from sensing.imu import IMUData
 
 class ControlledGNSSReader:
     def __init__(self) -> None:
-        self.message_queue: queue.Queue[GNSSData] = queue.Queue()
+        self.message_queue: queue.Queue[GNSSData | None] = queue.Queue()
 
     def __enter__(self) -> "ControlledGNSSReader":
         return self
@@ -20,17 +20,22 @@ class ControlledGNSSReader:
     def __exit__(self, *_: object) -> None:
         pass
 
+    def cancel(self) -> None:
+        """Unblocks the queue wait instantly."""
+        self.message_queue.put(None)
+
     def __iter__(self) -> Iterator[GNSSData]:
         while True:
-            try:
-                yield self.message_queue.get(timeout=0.05)
-            except queue.Empty:
+            # Safe, blocking wait. No fragile CI timeout needed.
+            data = self.message_queue.get()
+            if data is None:
                 return
+            yield data
 
 
 class ControlledIMUReader:
     def __init__(self) -> None:
-        self.message_queue: queue.Queue[IMUData] = queue.Queue()
+        self.message_queue: queue.Queue[IMUData | None] = queue.Queue()
 
     def __enter__(self) -> "ControlledIMUReader":
         return self
@@ -38,11 +43,20 @@ class ControlledIMUReader:
     def __exit__(self, *_: object) -> None:
         pass
 
+    def cancel(self) -> None:
+        """Trigger an OSError simulation on next read."""
+        self.message_queue.put(None)
+
     def read(self, timeout: float = 0.01) -> IMUData:
         try:
-            return self.message_queue.get(timeout=timeout)
+            data = self.message_queue.get(timeout=timeout)
         except queue.Empty as exc:
             raise TimeoutError() from exc
+
+        if data is None:
+            raise OSError("Simulated hardware disconnect.")
+
+        return data
 
 
 @pytest.fixture(autouse=True)
@@ -52,8 +66,8 @@ def mock_hardware_readers() -> (
     gnss_controller = ControlledGNSSReader()
     imu_controller = ControlledIMUReader()
     with (
-        patch("server.sensors.GNSSReader", return_value=gnss_controller),
-        patch("server.sensors.IMUReader", return_value=imu_controller),
+        patch("server.main.GNSSReader", return_value=gnss_controller),
+        patch("server.main.IMUReader", return_value=imu_controller),
     ):
         yield gnss_controller, imu_controller
 

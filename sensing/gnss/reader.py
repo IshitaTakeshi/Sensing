@@ -106,25 +106,30 @@ class GNSSReader:
             return GNSSData(gga=gga, vtg=self._last_vtg)
         return None
 
+    def cancel(self) -> None:
+        """Cancel pending blocking reads gracefully.
+
+        Uses the underlying serial implementation to cancel I/O, allowing
+        background threads to exit cleanly without waiting for timeouts.
+        """
+        if self._serial is None:
+            return
+        self._serial.cancel_read()
+
     def read(self) -> GNSSData:
         """Block until the next GGA sentence and return a combined GNSS sample.
 
-        Reads lines from the serial port one at a time. VTG lines update
-        internal state; GGA lines produce a return value. All other lines
-        (GSA, GSV, RMC, etc.) and lines that fail checksum validation are
-        silently skipped.
-
-        Returns:
-            ``GNSSData`` with the parsed GGA and the most recently received
-            VTG (``None`` if no VTG has arrived yet).
-
         Raises:
             RuntimeError: If called outside a ``with`` block.
+            EOFError: If the read is cancelled or the stream ends.
         """
         if self._serial is None:
             raise RuntimeError("GNSSReader must be used as a context manager.")
         while True:
             line = self._serial.readline().decode("ascii", errors="ignore")
+            if not line:
+                raise EOFError("Serial port read cancelled.")
+
             result = self._process_line(line)
             if result is not None:
                 return result
