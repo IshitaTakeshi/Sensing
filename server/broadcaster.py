@@ -23,7 +23,11 @@ def _enqueue_message(queue: asyncio.Queue[str], message: str) -> None:
     queue.put_nowait(message)
 
 
+def _broadcast_all(message: str) -> None:
+    for queue in list(_subscriber_queues):
+        _enqueue_message(queue, message)
+
+
 def broadcast_message(message: str, loop: asyncio.AbstractEventLoop) -> None:
     """Dispatch a message to all active subscriber queues safely."""
-    for queue in list(_subscriber_queues):
-        loop.call_soon_threadsafe(_enqueue_message, queue, message)
+    loop.call_soon_threadsafe(_broadcast_all, message)
