@@ -16,6 +16,10 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.4",
 ]
+server = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
 
 [tool.ruff]
 extend = ".coding-guideline/ruff.toml"
@@ -40,3 +44,7 @@ disallow_any_generics = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "server.*"
+disallow_untyped_defs = true
