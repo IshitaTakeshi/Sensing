@@ -1,6 +1,6 @@
 """GNSS data types for combined parsed sentences."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from sensing.nmea.types import GGAData, VTGData
 
@@ -33,4 +33,4 @@ class GNSSData:
     """
 
     gga: GGAData
-    vtg: VTGData | None = field(default=None)
+    vtg: VTGData | None = None

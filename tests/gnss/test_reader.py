@@ -2,10 +2,10 @@
 
 import itertools
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
-import serial
 import pytest
+import serial
 
 from sensing.gnss import GNSSData, GNSSReader
 from sensing.nmea.types import GGAData, VTGData
@@ -214,9 +214,8 @@ class TestGNSSReaderCleanup:
         mock_hw.ser.close.assert_called_once()
 
     def test_closes_serial_on_exception(self, mock_hw):
-        with pytest.raises(ValueError, match="test"):
-            with GNSSReader():
-                raise ValueError("test")
+        with pytest.raises(ValueError, match="test"), GNSSReader():
+            raise ValueError("test")
         mock_hw.ser.close.assert_called_once()
 
 

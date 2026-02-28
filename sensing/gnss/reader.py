@@ -11,14 +11,18 @@ Reading strategy:
     skipped. Sentences that fail checksum validation are also discarded.
 """
 
-import serial  # type: ignore[import-untyped]
 from collections.abc import Iterator
 from types import TracebackType
+from typing import TYPE_CHECKING
+
+import serial  # type: ignore[import-untyped]
 
 from sensing.gnss.types import GNSSData
 from sensing.nmea.gga import parse_gga
-from sensing.nmea.types import VTGData
 from sensing.nmea.vtg import parse_vtg
+
+if TYPE_CHECKING:
+    from sensing.nmea.types import VTGData
 
 # --- Hardware defaults -------------------------------------------------------
 
@@ -92,6 +96,16 @@ class GNSSReader:
             self._serial.close()
             self._serial = None
 
+    def _process_line(self, line: str) -> GNSSData | None:
+        vtg = parse_vtg(line)
+        if vtg is not None:
+            self._last_vtg = vtg
+            return None
+        gga = parse_gga(line)
+        if gga is not None:
+            return GNSSData(gga=gga, vtg=self._last_vtg)
+        return None
+
     def read(self) -> GNSSData:
         """Block until the next GGA sentence and return a combined GNSS sample.
 
@@ -109,19 +123,11 @@ class GNSSReader:
         """
         if self._serial is None:
             raise RuntimeError("GNSSReader must be used as a context manager.")
-
         while True:
-            raw = self._serial.readline()
-            line = raw.decode("ascii", errors="ignore")
-
-            vtg = parse_vtg(line)
-            if vtg is not None:
-                self._last_vtg = vtg
-                continue
-
-            gga = parse_gga(line)
-            if gga is not None:
-                return GNSSData(gga=gga, vtg=self._last_vtg)
+            line = self._serial.readline().decode("ascii", errors="ignore")
+            result = self._process_line(line)
+            if result is not None:
+                return result
 
     def __iter__(self) -> Iterator[GNSSData]:
         """Yield GNSS samples indefinitely, one per GGA sentence.
