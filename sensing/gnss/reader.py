@@ -74,6 +74,7 @@ class GNSSReader:
         self._baudrate = baudrate
         self._serial: serial.Serial | None = None
         self._last_vtg: VTGData | None = None
+        self._cancelled: bool = False
 
     def __enter__(self) -> "GNSSReader":
         """Open the serial port and reset internal VTG state."""
@@ -83,6 +84,7 @@ class GNSSReader:
             timeout=_TIMEOUT,
         )
         self._last_vtg = None
+        self._cancelled = False
         return self
 
     def __exit__(
@@ -106,25 +108,37 @@ class GNSSReader:
             return GNSSData(gga=gga, vtg=self._last_vtg)
         return None
 
+    def cancel(self) -> None:
+        """Cancel pending blocking reads gracefully.
+
+        Uses the underlying serial implementation to cancel I/O, allowing
+        background threads to exit cleanly without waiting for timeouts.
+        """
+        self._cancelled = True
+        if self._serial is None:
+            return
+        self._serial.cancel_read()
+
+    def _read_line(self, ser: "serial.Serial") -> str:
+        """Read one line from serial; empty string means serial timeout."""
+        line: str = ser.readline().decode("ascii", errors="ignore")
+        if not line and self._cancelled:
+            raise EOFError("Serial port read cancelled.")
+        return line
+
     def read(self) -> GNSSData:
         """Block until the next GGA sentence and return a combined GNSS sample.
 
-        Reads lines from the serial port one at a time. VTG lines update
-        internal state; GGA lines produce a return value. All other lines
-        (GSA, GSV, RMC, etc.) and lines that fail checksum validation are
-        silently skipped.
-
-        Returns:
-            ``GNSSData`` with the parsed GGA and the most recently received
-            VTG (``None`` if no VTG has arrived yet).
-
         Raises:
             RuntimeError: If called outside a ``with`` block.
+            EOFError: If the read is cancelled or the stream ends.
         """
         if self._serial is None:
             raise RuntimeError("GNSSReader must be used as a context manager.")
         while True:
-            line = self._serial.readline().decode("ascii", errors="ignore")
+            line = self._read_line(self._serial)
+            if not line:
+                continue
             result = self._process_line(line)
             if result is not None:
                 return result

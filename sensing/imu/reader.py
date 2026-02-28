@@ -185,6 +185,7 @@ class IMUReader:
         self._spi: spidev.SpiDev | None = None
         self._chip: gpiod.Chip | None = None
         self._request: gpiod.LineRequest | None = None
+        self._cancelled: bool = False
 
     def __enter__(self) -> "IMUReader":
         """Open SPI, reset the IMU, set up GPIO edge detection, and start sampling."""
@@ -196,19 +197,19 @@ class IMUReader:
         # Reset before setting up GPIO so no spurious edges are missed
         _reset_imu(self._spi)
 
-        settings = gpiod.LineSettings(
-            direction=Direction.INPUT,
-            edge_detection=Edge.RISING,
-            event_clock=Clock.REALTIME,
-        )
         self._chip = gpiod.Chip(self._gpio_chip)
         self._request = self._chip.request_lines(
             consumer="IMUReader",
-            config={self._gpio_line: settings},
+            config={self._gpio_line: gpiod.LineSettings(
+                direction=Direction.INPUT,
+                edge_detection=Edge.RISING,
+                event_clock=Clock.REALTIME,
+            )},
         )
 
         # GPIO edge detection is active; safe to start the measurement cycle
         _start_imu(self._spi)
+        self._cancelled = False
         return self
 
     def __exit__(
@@ -228,6 +229,18 @@ class IMUReader:
             self._spi.close()
             self._spi = None
 
+    def cancel(self) -> None:
+        """Safely interrupt the hardware read cycle.
+
+        Releasing the GPIO line unblocks the underlying wait_edge_events
+        call immediately, raising an OSError in the reading thread.
+        """
+        self._cancelled = True
+        if self._request is None:
+            return
+        self._request.release()
+        self._request = None
+
     def read(self, timeout: float = 1.0) -> IMUData:
         """Block until the next DRDY interrupt and return one IMU sample.
 
@@ -245,6 +258,8 @@ class IMUReader:
             TimeoutError: If no DRDY interrupt fires within *timeout* seconds.
         """
         if self._request is None or self._spi is None:
+            if self._cancelled:
+                raise OSError("IMU reading cancelled.")
             raise RuntimeError("IMUReader must be used as a context manager.")
         if not self._request.wait_edge_events(timeout=timeout):
             raise TimeoutError(f"No IMU DRDY interrupt within {timeout}s.")

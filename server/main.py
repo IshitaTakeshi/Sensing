@@ -19,6 +19,8 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
+from sensing.gnss import GNSSReader
+from sensing.imu import IMUReader
 from server.broadcaster import add_subscriber, remove_subscriber
 from server.sensors import run_gnss_loop, run_imu_loop
 
@@ -28,15 +30,23 @@ _STATIC_DIRECTORY = Path(__file__).parent / "static"
 _QUEUE_MAXIMUM_SIZE = 10
 _TIMEOUT_SECONDS = 5.0
 
-
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     loop = asyncio.get_running_loop()
-    executor = ThreadPoolExecutor(max_workers=2)
-    loop.run_in_executor(executor, run_gnss_loop, loop)
-    loop.run_in_executor(executor, run_imu_loop, loop)
-    yield
-    executor.shutdown(wait=False)
+    with (
+        ThreadPoolExecutor(max_workers=2) as executor,
+        GNSSReader() as gnss,
+        IMUReader() as imu,
+    ):
+        loop.run_in_executor(executor, run_gnss_loop, loop, gnss)
+        loop.run_in_executor(executor, run_imu_loop, loop, imu)
+
+        yield
+
+        # Safely interrupt blocking I/O calls first; the executor context
+        # manager calls shutdown(wait=True) when its block exits.
+        gnss.cancel()
+        imu.cancel()
 
 
 app = FastAPI(lifespan=_lifespan)
