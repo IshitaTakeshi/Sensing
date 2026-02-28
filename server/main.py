@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from sensing.gnss import GNSSData, GNSSReader
@@ -43,7 +43,7 @@ def _gnss_to_json(data: GNSSData) -> str:
             "utc_time": data.gga.utc_time,
             "speed_ms": vtg.speed_meters_per_second if vtg else None,
             "track_degrees": vtg.track_true_degrees if vtg else None,
-            "vtg_valid": vtg.valid if vtg else False,
+            "vtg_valid": vtg.valid if vtg is not None else None,
         }
     )
 
@@ -85,13 +85,23 @@ def _run_gnss_thread(
             _broadcast(_gnss_to_json(data), subscribers, loop)
 
 
+def _try_read_imu(imu: IMUReader) -> IMUData | None:
+    try:
+        return imu.read()
+    except TimeoutError:
+        return None
+
+
 def _run_imu_thread(
     subscribers: list[asyncio.Queue[str]],
     loop: asyncio.AbstractEventLoop,
 ) -> None:
     counter = 0
     with IMUReader() as imu:
-        for data in imu:
+        while True:
+            data = _try_read_imu(imu)
+            if data is None:
+                continue
             counter += 1
             if counter % _IMU_DECIMATION == 0:
                 _broadcast(_imu_to_json(data), subscribers, loop)
@@ -101,9 +111,14 @@ async def _forward_queue_to_websocket(
     queue: asyncio.Queue[str],
     websocket: WebSocket,
 ) -> None:
-    while True:
-        message = await asyncio.wait_for(queue.get(), timeout=5.0)
-        await websocket.send_text(message)
+    try:
+        while True:
+            message = await asyncio.wait_for(queue.get(), timeout=5.0)
+            await websocket.send_text(message)
+    except TimeoutError:
+        await websocket.close(code=1001)
+    except WebSocketDisconnect:
+        pass
 
 
 @asynccontextmanager
