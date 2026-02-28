@@ -33,20 +33,20 @@ _TIMEOUT_SECONDS = 5.0
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     loop = asyncio.get_running_loop()
-    executor = ThreadPoolExecutor(max_workers=2)
-
-    with GNSSReader() as gnss, IMUReader() as imu:
+    with (
+        ThreadPoolExecutor(max_workers=2) as executor,
+        GNSSReader() as gnss,
+        IMUReader() as imu,
+    ):
         loop.run_in_executor(executor, run_gnss_loop, loop, gnss)
         loop.run_in_executor(executor, run_imu_loop, loop, imu)
 
         yield
 
-        # Safely interrupt blocking I/O calls first
+        # Safely interrupt blocking I/O calls first; the executor context
+        # manager calls shutdown(wait=True) when its block exits.
         gnss.cancel()
         imu.cancel()
-
-        # Thread exit is now instantaneous; no hang
-        executor.shutdown(wait=True)
 
 
 app = FastAPI(lifespan=_lifespan)

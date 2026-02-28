@@ -74,6 +74,7 @@ class GNSSReader:
         self._baudrate = baudrate
         self._serial: serial.Serial | None = None
         self._last_vtg: VTGData | None = None
+        self._cancelled: bool = False
 
     def __enter__(self) -> "GNSSReader":
         """Open the serial port and reset internal VTG state."""
@@ -83,6 +84,7 @@ class GNSSReader:
             timeout=_TIMEOUT,
         )
         self._last_vtg = None
+        self._cancelled = False
         return self
 
     def __exit__(
@@ -112,9 +114,17 @@ class GNSSReader:
         Uses the underlying serial implementation to cancel I/O, allowing
         background threads to exit cleanly without waiting for timeouts.
         """
+        self._cancelled = True
         if self._serial is None:
             return
         self._serial.cancel_read()
+
+    def _read_line(self, ser: "serial.Serial") -> str:
+        """Read one line from serial; empty string means serial timeout."""
+        line: str = ser.readline().decode("ascii", errors="ignore")
+        if not line and self._cancelled:
+            raise EOFError("Serial port read cancelled.")
+        return line
 
     def read(self) -> GNSSData:
         """Block until the next GGA sentence and return a combined GNSS sample.
@@ -126,10 +136,9 @@ class GNSSReader:
         if self._serial is None:
             raise RuntimeError("GNSSReader must be used as a context manager.")
         while True:
-            line = self._serial.readline().decode("ascii", errors="ignore")
+            line = self._read_line(self._serial)
             if not line:
-                raise EOFError("Serial port read cancelled.")
-
+                continue
             result = self._process_line(line)
             if result is not None:
                 return result
