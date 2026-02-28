@@ -1,5 +1,6 @@
 """Sensing package for GNSS and IMU data processing."""
 
+from sensing.gnss import GNSSData, GNSSReader
 from sensing.imu import IMUData, IMUReader
 from sensing.nmea import (
     GGAData,
@@ -11,6 +12,8 @@ from sensing.nmea import (
 
 __all__ = [
     "GGAData",
+    "GNSSData",
+    "GNSSReader",
     "IMUData",
     "IMUReader",
     "VTGData",
