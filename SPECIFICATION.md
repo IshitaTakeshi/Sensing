@@ -10,7 +10,6 @@ This system utilizes a Raspberry Pi 4B to achieve nanosecond-level system time s
 | **OS** | Debian GNU/Linux 13 (trixie) | Kernel 6.12.x (aarch64) |
 | **GNSS** | u-blox ZED-F9P | Connected via UART (NMEA) + PPS |
 | **IMU** | STMicroelectronics ISM330DHCX | Connected via SPI + INT signal |
-| **Python** | >= 3.13 | Executed via `uv` environment |
 
 ---
 
