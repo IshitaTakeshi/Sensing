@@ -1,0 +1,27 @@
+name: Unit Tests (ubuntu-24.04)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y libgpiod-dev
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python dependencies
+        run: uv sync --extra dev
+
+      - name: Run tests
+        run: uv run --extra dev pytest tests/ -v
