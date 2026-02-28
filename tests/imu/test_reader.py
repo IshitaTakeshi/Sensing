@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, call
 import gpiod
 import pytest
 import spidev
-from gpiod.line import Direction, Edge
+from gpiod.line import Clock, Direction, Edge
 
 from sensing.imu import IMUData, IMUReader
 from sensing.imu.reader import (
@@ -53,39 +53,41 @@ def _make_raw(
 def mock_hw(monkeypatch):
     """Replace all hardware objects with mocks for the duration of a test.
 
-    Patches spidev.SpiDev, gpiod.Chip, time.sleep, and time.clock_gettime
-    so that IMUReader can be instantiated and exercised without hardware.
+    Patches spidev.SpiDev, gpiod.Chip, and time.sleep so that IMUReader can
+    be instantiated and exercised without hardware.
 
     Returns a SimpleNamespace with attributes:
         spi       -- the SpiDev instance mock
         chip      -- the Chip instance mock
         chip_cls  -- the Chip class mock (to verify constructor call args)
         request   -- the LineRequest mock
-        clock     -- the clock_gettime mock (to control timestamps)
+        event     -- the mock edge event (to control timestamp_ns)
     """
     mock_spi = MagicMock()
     mock_spi.xfer2.return_value = [0] * 13
 
+    mock_event = MagicMock()
+    mock_event.timestamp_ns = 0
+
     mock_request = MagicMock()
     mock_request.wait_edge_events.return_value = True
+    mock_request.read_edge_events.return_value = [mock_event]
 
     mock_chip = MagicMock()
     mock_chip.request_lines.return_value = mock_request
 
     mock_chip_cls = MagicMock(return_value=mock_chip)
-    mock_clock = MagicMock(return_value=0.0)
 
     monkeypatch.setattr(spidev, "SpiDev", MagicMock(return_value=mock_spi))
     monkeypatch.setattr(gpiod, "Chip", mock_chip_cls)
     monkeypatch.setattr(time, "sleep", MagicMock())
-    monkeypatch.setattr(time, "clock_gettime", mock_clock)
 
     return SimpleNamespace(
         spi=mock_spi,
         chip=mock_chip,
         chip_cls=mock_chip_cls,
         request=mock_request,
-        clock=mock_clock,
+        event=mock_event,
     )
 
 
@@ -98,7 +100,7 @@ class TestParseSample:
     """Tests for the pure byte-to-physical-unit conversion function."""
 
     def test_all_zeros_produce_zero_output(self):
-        sample = _parse_sample(_make_raw(), timestamp=0.0)
+        sample = _parse_sample(_make_raw(), timestamp_ns=0)
         assert sample.accel_x == pytest.approx(0.0)
         assert sample.accel_y == pytest.approx(0.0)
         assert sample.accel_z == pytest.approx(0.0)
@@ -107,76 +109,76 @@ class TestParseSample:
         assert sample.gyro_z == pytest.approx(0.0)
 
     def test_one_lsb_accel_x(self):
-        sample = _parse_sample(_make_raw(ax=1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(ax=1), timestamp_ns=0)
         assert sample.accel_x == pytest.approx(_ACCEL_SENSITIVITY)
         assert sample.accel_y == pytest.approx(0.0)
         assert sample.accel_z == pytest.approx(0.0)
 
     def test_one_lsb_accel_y(self):
-        sample = _parse_sample(_make_raw(ay=1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(ay=1), timestamp_ns=0)
         assert sample.accel_x == pytest.approx(0.0)
         assert sample.accel_y == pytest.approx(_ACCEL_SENSITIVITY)
         assert sample.accel_z == pytest.approx(0.0)
 
     def test_one_lsb_accel_z(self):
-        sample = _parse_sample(_make_raw(az=1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(az=1), timestamp_ns=0)
         assert sample.accel_x == pytest.approx(0.0)
         assert sample.accel_z == pytest.approx(_ACCEL_SENSITIVITY)
 
     def test_one_lsb_gyro_x(self):
-        sample = _parse_sample(_make_raw(gx=1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(gx=1), timestamp_ns=0)
         assert sample.gyro_x == pytest.approx(_GYRO_SENSITIVITY)
         assert sample.gyro_y == pytest.approx(0.0)
         assert sample.gyro_z == pytest.approx(0.0)
 
     def test_one_lsb_gyro_y(self):
-        sample = _parse_sample(_make_raw(gy=1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(gy=1), timestamp_ns=0)
         assert sample.gyro_x == pytest.approx(0.0)
         assert sample.gyro_y == pytest.approx(_GYRO_SENSITIVITY)
         assert sample.gyro_z == pytest.approx(0.0)
 
     def test_one_lsb_gyro_z(self):
-        sample = _parse_sample(_make_raw(gz=1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(gz=1), timestamp_ns=0)
         assert sample.gyro_z == pytest.approx(_GYRO_SENSITIVITY)
 
     def test_negative_accel(self):
-        sample = _parse_sample(_make_raw(ax=-1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(ax=-1), timestamp_ns=0)
         assert sample.accel_x == pytest.approx(-_ACCEL_SENSITIVITY)
 
     def test_negative_gyro(self):
-        sample = _parse_sample(_make_raw(gx=-1), timestamp=0.0)
+        sample = _parse_sample(_make_raw(gx=-1), timestamp_ns=0)
         assert sample.gyro_x == pytest.approx(-_GYRO_SENSITIVITY)
 
     def test_max_int16(self):
-        sample = _parse_sample(_make_raw(ax=32767, gx=32767), timestamp=0.0)
+        sample = _parse_sample(_make_raw(ax=32767, gx=32767), timestamp_ns=0)
         assert sample.accel_x == pytest.approx(32767 * _ACCEL_SENSITIVITY)
         assert sample.gyro_x == pytest.approx(32767 * _GYRO_SENSITIVITY)
 
     def test_min_int16(self):
-        sample = _parse_sample(_make_raw(ax=-32768, gx=-32768), timestamp=0.0)
+        sample = _parse_sample(_make_raw(ax=-32768, gx=-32768), timestamp_ns=0)
         assert sample.accel_x == pytest.approx(-32768 * _ACCEL_SENSITIVITY)
         assert sample.gyro_x == pytest.approx(-32768 * _GYRO_SENSITIVITY)
 
     def test_approx_one_g_on_z_axis(self):
         # 16384 LSB * 0.061 mg/LSB ≈ 999 mg; rel=1e-2 allows for LSB rounding
-        sample = _parse_sample(_make_raw(az=16384), timestamp=0.0)
+        sample = _parse_sample(_make_raw(az=16384), timestamp_ns=0)
         assert sample.accel_z == pytest.approx(9.80665, rel=1e-2)
 
     def test_full_scale_gyro_is_2293_dps_not_2000(self):
         # The FS=±2000 dps label is not the true full-scale range.
         # Datasheet sensitivity: 70 mdps/LSB (TYP), so max int16 (32767 LSB)
         # gives 32767 * 70e-3 = 2293.69 dps, not 2000 dps.
-        sample = _parse_sample(_make_raw(gz=32767), timestamp=0.0)
+        sample = _parse_sample(_make_raw(gz=32767), timestamp_ns=0)
         expected_rad_s = 2293.69 * (math.pi / 180.0)
         assert sample.gyro_z == pytest.approx(expected_rad_s, rel=1e-3)
 
     def test_timestamp_is_preserved(self):
-        ts = 1_700_000_000.123456
-        sample = _parse_sample(_make_raw(), timestamp=ts)
-        assert sample.timestamp == ts
+        ts = 1_700_000_000_123_456_789
+        sample = _parse_sample(_make_raw(), timestamp_ns=ts)
+        assert sample.timestamp_ns == ts
 
     def test_all_six_axes_are_independent(self):
-        sample = _parse_sample(_make_raw(gx=1, gy=2, gz=3, ax=4, ay=5, az=6), timestamp=0.0)
+        sample = _parse_sample(_make_raw(gx=1, gy=2, gz=3, ax=4, ay=5, az=6), timestamp_ns=0)
         assert sample.gyro_x == pytest.approx(1 * _GYRO_SENSITIVITY)
         assert sample.gyro_y == pytest.approx(2 * _GYRO_SENSITIVITY)
         assert sample.gyro_z == pytest.approx(3 * _GYRO_SENSITIVITY)
@@ -185,7 +187,7 @@ class TestParseSample:
         assert sample.accel_z == pytest.approx(6 * _ACCEL_SENSITIVITY)
 
     def test_returns_imu_data_instance(self):
-        sample = _parse_sample(_make_raw(), timestamp=0.0)
+        sample = _parse_sample(_make_raw(), timestamp_ns=0)
         assert isinstance(sample, IMUData)
 
 
@@ -259,21 +261,21 @@ class TestReadSample:
     def test_sends_read_bit_on_register_address(self):
         spi = MagicMock()
         spi.xfer2.return_value = [0] * 13
-        _read_sample(spi, timestamp=0.0)
+        _read_sample(spi, timestamp_ns=0)
         cmd = spi.xfer2.call_args[0][0]
         assert cmd[0] == _REG_OUTX_L_G | 0x80
 
     def test_sends_thirteen_byte_message(self):
         spi = MagicMock()
         spi.xfer2.return_value = [0] * 13
-        _read_sample(spi, timestamp=0.0)
+        _read_sample(spi, timestamp_ns=0)
         assert len(spi.xfer2.call_args[0][0]) == 13
 
     def test_parses_spi_response_into_imu_data(self):
         spi = MagicMock()
         raw = _make_raw(gx=10, ax=20)
         spi.xfer2.return_value = [0, *list(raw)]
-        sample = _read_sample(spi, timestamp=0.0)
+        sample = _read_sample(spi, timestamp_ns=0)
         assert sample.gyro_x == pytest.approx(10 * _GYRO_SENSITIVITY)
         assert sample.accel_x == pytest.approx(20 * _ACCEL_SENSITIVITY)
 
@@ -313,6 +315,7 @@ class TestIMUReaderSetup:
             settings = config[25]
             assert settings.direction == Direction.INPUT
             assert settings.edge_detection == Edge.RISING
+            assert settings.event_clock == Clock.REALTIME
 
     def test_requests_gpio_with_consumer_name(self, mock_hw):
         with IMUReader():
@@ -350,11 +353,11 @@ class TestIMUReaderRead:
         assert isinstance(sample, IMUData)
         assert mock_hw.request.read_edge_events.called
 
-    def test_timestamp_comes_from_clock_realtime(self, mock_hw):
-        mock_hw.clock.return_value = 1_700_000_000.5
+    def test_timestamp_comes_from_kernel_edge_event(self, mock_hw):
+        mock_hw.event.timestamp_ns = 1_700_000_000_500_000_000
         with IMUReader() as imu:
             sample = imu.read()
-        assert sample.timestamp == pytest.approx(1_700_000_000.5)
+        assert sample.timestamp_ns == 1_700_000_000_500_000_000
 
 
 class TestIMUReaderCleanup:
