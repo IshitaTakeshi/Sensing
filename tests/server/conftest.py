@@ -1,5 +1,7 @@
 """Pytest fixtures for server module testing."""
 
+import asyncio
+import contextlib
 import queue
 from collections.abc import Iterator
 from unittest.mock import patch
@@ -8,6 +10,7 @@ import pytest
 
 from sensing.gnss import GNSSData
 from sensing.imu import IMUData
+from server.sensors import run_imu_loop
 
 
 class _StopError(Exception):
@@ -52,6 +55,11 @@ class ControlledIMUReader:
         return item
 
 
+def _run_imu_loop_safely(loop: asyncio.AbstractEventLoop) -> None:
+    with contextlib.suppress(_StopError):
+        run_imu_loop(loop)
+
+
 @pytest.fixture(autouse=True)
 def mock_hardware_readers() -> (
     Iterator[tuple[ControlledGNSSReader, ControlledIMUReader]]
@@ -61,6 +69,7 @@ def mock_hardware_readers() -> (
     with (
         patch("server.sensors.GNSSReader", return_value=gnss_controller),
         patch("server.sensors.IMUReader", return_value=imu_controller),
+        patch("server.main.run_imu_loop", _run_imu_loop_safely),
     ):
         yield gnss_controller, imu_controller
     gnss_controller.message_queue.put(None)
