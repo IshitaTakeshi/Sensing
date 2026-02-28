@@ -11,6 +11,7 @@ one ``type="imu"`` message every fifth IMU sample (~20 Hz).
 """
 
 import asyncio
+import threading
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -32,11 +33,13 @@ _TIMEOUT_SECONDS = 5.0
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     loop = asyncio.get_running_loop()
+    stop = threading.Event()
     executor = ThreadPoolExecutor(max_workers=2)
-    loop.run_in_executor(executor, run_gnss_loop, loop)
-    loop.run_in_executor(executor, run_imu_loop, loop)
+    loop.run_in_executor(executor, run_gnss_loop, loop, stop)
+    loop.run_in_executor(executor, run_imu_loop, loop, stop)
     yield
-    executor.shutdown(wait=False)
+    stop.set()
+    executor.shutdown(wait=True)
 
 
 app = FastAPI(lifespan=_lifespan)
