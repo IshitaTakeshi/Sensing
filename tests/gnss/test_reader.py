@@ -204,6 +204,13 @@ class TestGNSSReaderSetup:
             gnss.read()
         mock_gpsd.sock.settimeout.assert_called_once()
 
+    def test_socket_closed_if_sendall_raises_on_enter(self, mock_gpsd):
+        mock_gpsd.sock.sendall.side_effect = OSError("refused")
+        with pytest.raises(OSError):
+            with GNSSReader():
+                pass
+        mock_gpsd.sock.close.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # GNSSReader - read
@@ -295,6 +302,13 @@ class TestGNSSReaderRead:
             data = gnss.read()
         assert data.gga.num_satellites == 5  # falls back to nSat
 
+    def test_sky_nsat_non_int_returns_none(self, mock_gpsd):
+        sky = {**_SKY_NSAT_ONLY, "nSat": "bad"}
+        mock_gpsd.stream.readline.side_effect = [_line(sky), _line(_TPV_SPS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.num_satellites is None
+
     def test_satellite_count_none_when_no_sky_received(self, mock_gpsd):
         mock_gpsd.stream.readline.side_effect = [_line(_TPV_SPS)]
         with GNSSReader() as gnss:
@@ -372,6 +386,15 @@ class TestGNSSReaderRead:
     def test_invalid_json_lines_are_skipped(self, mock_gpsd):
         mock_gpsd.stream.readline.side_effect = [
             _GARBAGE.encode(),
+            _line(_TPV_SPS),
+        ]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert isinstance(data, GNSSData)
+
+    def test_non_dict_json_lines_are_skipped(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [
+            b"[1, 2, 3]\n",
             _line(_TPV_SPS),
         ]
         with GNSSReader() as gnss:

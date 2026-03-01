@@ -86,7 +86,10 @@ def _count_used_from_sky(msg: dict[str, Any]) -> int | None:
         has_flag = any("used" in s for s in satellites if isinstance(s, dict))
         if has_flag:
             return sum(1 for s in satellites if isinstance(s, dict) and s.get("used"))
-    return msg.get("nSat")
+    n_sat = msg.get("nSat")
+    if isinstance(n_sat, int):
+        return n_sat
+    return None
 
 
 def _iso_to_utc_time(iso: str) -> str:
@@ -157,12 +160,25 @@ class GNSSReader:
         self._last_num_satellites: int | None = None
         self._last_hdop: float | None = None
 
+    def _open_connection(self) -> tuple[socket.socket, BufferedReader]:
+        """Create and configure the gpsd TCP connection.
+
+        Closes the socket before re-raising if setup fails after the initial
+        ``create_connection`` call, preventing a file-descriptor leak.
+        """
+        sock = socket.create_connection((self._host, self._port))
+        try:
+            sock.settimeout(_TIMEOUT)
+            sock.sendall(_WATCH_CMD)
+            return sock, sock.makefile("rb")
+        except Exception:
+            with contextlib.suppress(OSError):
+                sock.close()
+            raise
+
     def __enter__(self) -> "GNSSReader":
         """Open the gpsd connection and reset internal state."""
-        self._sock = socket.create_connection((self._host, self._port))
-        self._sock.settimeout(_TIMEOUT)
-        self._sock.sendall(_WATCH_CMD)
-        self._stream = self._sock.makefile("rb")
+        self._sock, self._stream = self._open_connection()
         self._cancelled = False
         self._last_num_satellites = None
         self._last_hdop = None
@@ -288,9 +304,12 @@ class GNSSReader:
     def _dispatch(self, line: str) -> GNSSData | None:
         """Parse one JSON line, update state, and return data on TPV."""
         try:
-            msg: dict[str, Any] = json.loads(line)
+            parsed = json.loads(line)
         except json.JSONDecodeError:
             return None
+        if not isinstance(parsed, dict):
+            return None
+        msg: dict[str, Any] = parsed
         cls = msg.get("class")
         if cls == "SKY":
             self._process_sky(msg)
