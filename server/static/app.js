@@ -67,7 +67,7 @@ function handleGnss(msg) {
     const label = FIX_LABEL[quality] ?? `Unknown (${quality})`;
 
     valFix.textContent = `${quality} - ${label}`;
-    statFix.className = `stat ${FIX_CLASS[quality] ?? 'fix-gps'}`;
+    statFix.className = `stat ${FIX_CLASS[quality] ?? 'fix-invalid'}`;
 
     valLat.textContent  = msg.lat != null ? msg.lat.toFixed(6) : '--';
     valLon.textContent  = msg.lon != null ? msg.lon.toFixed(6) : '--';
