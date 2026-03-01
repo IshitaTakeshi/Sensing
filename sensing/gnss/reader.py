@@ -17,8 +17,9 @@ import contextlib
 import json
 import socket
 from collections.abc import Iterator
+from io import BufferedReader
 from types import TracebackType
-from typing import IO, Any
+from typing import Any
 
 from sensing.gnss.types import GNSSData
 from sensing.nmea.types import GGAData, VTGData
@@ -63,6 +64,29 @@ _STATUS_TO_VTG_MODE: dict[int, str] = {
 
 
 # --- helpers ------------------------------------------------------------------
+
+
+def _count_used_from_sky(msg: dict[str, Any]) -> int | None:
+    """Return the number of satellites used in fix from a SKY message.
+
+    Precedence:
+
+    1. ``uSat`` - explicit used count (gpsd >= 3.19).
+    2. ``satellites[].used`` - derived from per-satellite flags when ``uSat``
+       is absent (older gpsd).
+    3. ``nSat`` - total satellites visible, used only as a last resort because
+       it counts satellites *in view*, not *in use*, and therefore
+       over-estimates the GGA field semantics.
+    """
+    u_sat: int | None = msg.get("uSat")
+    if u_sat is not None:
+        return u_sat
+    satellites = msg.get("satellites")
+    if isinstance(satellites, list):
+        has_flag = any("used" in s for s in satellites if isinstance(s, dict))
+        if has_flag:
+            return sum(1 for s in satellites if isinstance(s, dict) and s.get("used"))
+    return msg.get("nSat")
 
 
 def _iso_to_utc_time(iso: str) -> str:
@@ -128,7 +152,7 @@ class GNSSReader:
         self._host = host
         self._port = port
         self._sock: socket.socket | None = None
-        self._stream: IO[Any] | None = None
+        self._stream: BufferedReader | None = None
         self._cancelled: bool = False
         self._last_num_satellites: int | None = None
         self._last_hdop: float | None = None
@@ -171,8 +195,13 @@ class GNSSReader:
             with contextlib.suppress(OSError):
                 self._sock.shutdown(socket.SHUT_RDWR)
 
-    def _recv_raw(self, stream: IO[Any]) -> bytes | None:
+    def _recv_raw(self, stream: BufferedReader) -> bytes | None:
         """Read one raw line from gpsd; returns ``None`` on timeout retry.
+
+        ``TimeoutError`` (which is ``socket.timeout`` in Python 3.3+) is
+        caught before the generic ``OSError`` clause so that normal polling
+        gaps are silently retried rather than treated as fatal connection
+        errors.
 
         Raises:
             EOFError: If the stream ended or the connection was closed.
@@ -205,9 +234,7 @@ class GNSSReader:
 
     def _process_sky(self, msg: dict[str, Any]) -> None:
         """Update stored satellite count and HDOP from a SKY message."""
-        # uSat = satellites used in fix (gpsd >= 3.19); fall back to nSat
-        u_sat: int | None = msg.get("uSat")
-        self._last_num_satellites = u_sat if u_sat is not None else msg.get("nSat")
+        self._last_num_satellites = _count_used_from_sky(msg)
         self._last_hdop = msg.get("hdop")
 
     def _build_gga(

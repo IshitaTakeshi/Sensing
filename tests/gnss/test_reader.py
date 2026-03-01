@@ -64,11 +64,35 @@ _SKY_12 = {
     "hdop": 0.5,
 }
 
-# SKY message where only nSat is present (older gpsd without uSat)
+# SKY message where only nSat is present (older gpsd without uSat, no satellites list)
 _SKY_NSAT_ONLY = {
     "class": "SKY",
     "nSat": 8,
     "hdop": 1.2,
+}
+
+# SKY without uSat but with per-satellite used flags (3 out of 4 used)
+_SKY_SATELLITES_WITH_FLAGS = {
+    "class": "SKY",
+    "nSat": 10,
+    "hdop": 0.7,
+    "satellites": [
+        {"PRN": 1, "used": True},
+        {"PRN": 2, "used": True},
+        {"PRN": 3, "used": False},
+        {"PRN": 4, "used": True},
+    ],
+}
+
+# SKY with satellites list but no per-satellite used field (fall back to nSat)
+_SKY_SATELLITES_NO_USED_FLAG = {
+    "class": "SKY",
+    "nSat": 5,
+    "hdop": 1.0,
+    "satellites": [
+        {"PRN": 1, "el": 45},
+        {"PRN": 2, "el": 30},
+    ],
 }
 
 # A gpsd WATCH echo -- should be silently ignored
@@ -253,6 +277,24 @@ class TestGNSSReaderRead:
             data = gnss.read()
         assert data.gga.num_satellites == 8
 
+    def test_sky_satellites_used_flags_derived_when_usat_absent(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [
+            _line(_SKY_SATELLITES_WITH_FLAGS),
+            _line(_TPV_SPS),
+        ]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.num_satellites == 3  # 3 of 4 entries have used=True
+
+    def test_sky_falls_back_to_nsat_when_no_used_flag_in_satellites(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [
+            _line(_SKY_SATELLITES_NO_USED_FLAG),
+            _line(_TPV_SPS),
+        ]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.num_satellites == 5  # falls back to nSat
+
     def test_satellite_count_none_when_no_sky_received(self, mock_gpsd):
         mock_gpsd.stream.readline.side_effect = [_line(_TPV_SPS)]
         with GNSSReader() as gnss:
@@ -380,7 +422,7 @@ class TestGNSSReaderCancel:
     def test_cancel_during_timeout_raises_eof_error(self, mock_gpsd):
         mock_gpsd.stream.readline.side_effect = TimeoutError()
         with GNSSReader() as gnss:
-            gnss._cancelled = True  # type: ignore[attr-defined]
+            gnss.cancel()
             with pytest.raises(EOFError):
                 gnss.read()
 
