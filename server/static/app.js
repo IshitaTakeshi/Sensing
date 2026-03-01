@@ -22,8 +22,10 @@ const FIX_CLASS = {
 
 // --- Map ---
 
-const map = L.map('map').setView([0, 0], 2);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+const mapEl = document.getElementById('map');
+const tileUrl = mapEl.dataset.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const map = L.map(mapEl).setView([0, 0], 2);
+L.tileLayer(tileUrl, {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
 }).addTo(map);
@@ -101,16 +103,20 @@ function handleGnss(msg) {
             centeredOnFix = true;
         }
 
-        const popupHtml =
-            `<strong>${label}</strong><br>` +
-            `Satellites: ${msg.num_satellites ?? '--'}<br>` +
-            `HDOP: ${msg.hdop ?? '--'}`;
+        const popupNode = document.createElement('div');
+        const strongEl = document.createElement('strong');
+        strongEl.textContent = label;
+        popupNode.appendChild(strongEl);
+        popupNode.appendChild(document.createElement('br'));
+        popupNode.appendChild(document.createTextNode(`Satellites: ${msg.num_satellites ?? '--'}`));
+        popupNode.appendChild(document.createElement('br'));
+        popupNode.appendChild(document.createTextNode(`HDOP: ${msg.hdop ?? '--'}`));
 
         if (marker === null) {
-            marker = L.marker(latlng).addTo(map).bindPopup(popupHtml);
+            marker = L.marker(latlng).addTo(map).bindPopup(popupNode);
         } else {
             marker.setLatLng(latlng);
-            marker.getPopup().setContent(popupHtml);
+            marker.getPopup().setContent(popupNode);
         }
     }
 }
