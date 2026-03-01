@@ -23,6 +23,8 @@ from typing import IO, Any
 from sensing.gnss.types import GNSSData
 from sensing.nmea.types import GGAData, VTGData
 
+__all__ = ["GNSSReader"]
+
 # --- gpsd connection defaults -------------------------------------------------
 
 _HOST = "localhost"
