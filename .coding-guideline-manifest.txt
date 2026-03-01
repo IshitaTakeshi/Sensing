@@ -1,4 +1,4 @@
-version: 0f20e5ded3dc8525fb03db264ec966c91e756a27
+version: d963b9167094adfa4ef6c80da51b28f40229af74
 .github/workflows/auto-label-major.yml
 .github/workflows/check-links.yml
 .github/workflows/check-pr-title.yml
