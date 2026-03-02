@@ -2,7 +2,6 @@
   "name": "sensing",
   "version": "1.0.0",
   "description": "See [SPECIFICATION.md](SPECIFICATION.md) for hardware wiring, OS configuration, and time synchronization setup.",
-  "main": "index.js",
   "directories": {
     "test": "tests"
   },
