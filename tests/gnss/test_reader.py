@@ -95,6 +95,39 @@ _SKY_SATELLITES_NO_USED_FLAG = {
     ],
 }
 
+# gpsd 3.25 ZED-F9P: mode present, status absent, 3D fix
+_TPV_MODE3_NO_STATUS = {
+    "class": "TPV",
+    "mode": 3,
+    "time": "2025-03-01T12:35:19.000Z",
+    "lat": 35.6586,
+    "lon": 139.7454,
+    "altMSL": 10.0,
+    "speed": 0.039,
+    "track": 0.0,
+}
+
+# mode=2 (2D fix), status absent
+_TPV_MODE2_NO_STATUS = {
+    "class": "TPV",
+    "mode": 2,
+    "lat": 35.6586,
+    "lon": 139.7454,
+}
+
+# mode=1 (no fix), status absent
+_TPV_MODE1_NO_STATUS = {"class": "TPV", "mode": 1}
+
+# mode=0 (unknown), status absent
+_TPV_MODE0_NO_STATUS = {"class": "TPV", "mode": 0}
+
+# Neither status nor mode present
+_TPV_NO_STATUS_NO_MODE = {
+    "class": "TPV",
+    "lat": 35.6586,
+    "lon": 139.7454,
+}
+
 # A gpsd WATCH echo -- should be silently ignored
 _WATCH_MSG = {"class": "WATCH", "enable": True}
 
@@ -206,9 +239,8 @@ class TestGNSSReaderSetup:
 
     def test_socket_closed_if_sendall_raises_on_enter(self, mock_gpsd):
         mock_gpsd.sock.sendall.side_effect = OSError("refused")
-        with pytest.raises(OSError):
-            with GNSSReader():
-                pass
+        with pytest.raises(OSError, match="refused"), GNSSReader():
+            pass
         mock_gpsd.sock.close.assert_called_once()
 
 
@@ -498,3 +530,88 @@ class TestGNSSReaderIter:
         assert samples[0].vtg.mode == "A"
         assert samples[1].vtg is not None
         assert samples[1].vtg.mode == "D"
+
+
+# ---------------------------------------------------------------------------
+# GNSSReader -- mode fallback when gpsd omits status (regression: #65)
+# ---------------------------------------------------------------------------
+
+
+class TestGNSSReaderStatusFallback:
+    def test_mode3_no_status_fix_quality_is_gps(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE3_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.fix_quality == 1
+
+    def test_mode3_no_status_gga_valid_true(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE3_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.valid is True
+
+    def test_mode3_no_status_position_fields_populated(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE3_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.latitude_degrees == pytest.approx(35.6586, rel=1e-6)
+        assert data.gga.longitude_degrees == pytest.approx(139.7454, rel=1e-6)
+        assert data.gga.altitude_meters == pytest.approx(10.0, rel=1e-4)
+
+    def test_mode3_no_status_vtg_valid_true(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE3_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.vtg is not None
+        assert data.vtg.valid is True
+
+    def test_mode3_no_status_vtg_mode_autonomous(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE3_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.vtg is not None
+        assert data.vtg.mode == "A"
+
+    def test_mode2_no_status_fix_quality_is_gps(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE2_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.fix_quality == 1
+        assert data.gga.valid is True
+
+    def test_mode1_no_status_fix_quality_is_invalid(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE1_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.fix_quality == 0
+        assert data.gga.valid is False
+
+    def test_mode0_no_status_fix_quality_is_invalid(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE0_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.fix_quality == 0
+        assert data.gga.valid is False
+
+    def test_no_status_no_mode_fix_quality_is_invalid(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_NO_STATUS_NO_MODE)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.fix_quality == 0
+        assert data.gga.valid is False
+
+    def test_mode1_no_status_vtg_valid_false(self, mock_gpsd):
+        mock_gpsd.stream.readline.side_effect = [_line(_TPV_MODE1_NO_STATUS)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.vtg is not None
+        assert data.vtg.valid is False
+        assert data.vtg.mode == "N"
+
+    def test_status_field_takes_precedence_over_mode(self, mock_gpsd):
+        tpv = {**_TPV_MODE3_NO_STATUS, "status": 0}
+        mock_gpsd.stream.readline.side_effect = [_line(tpv)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.fix_quality == 0
+        assert data.gga.valid is False
