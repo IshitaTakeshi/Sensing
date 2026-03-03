@@ -92,6 +92,22 @@ def _count_used_from_sky(msg: dict[str, Any]) -> int | None:
     return None
 
 
+def _tpv_status(msg: dict[str, Any]) -> int:
+    """Return the fix status integer from a TPV message.
+
+    gpsd 3.25 omits the ``status`` field for some devices (e.g. ZED-F9P).
+    When absent, fall back to ``mode``: values 0/1 mean no fix; 2/3 mean a
+    2D/3D fix, which maps to status 1 (GPS fix).
+    """
+    if "status" in msg:
+        status: int = msg["status"]
+        return status
+    mode: int = msg.get("mode", 0)
+    if mode >= 2:
+        return 1
+    return 0
+
+
 def _iso_to_utc_time(iso: str) -> str:
     """Convert an ISO 8601 UTC timestamp to HHMMSS.ss format.
 
@@ -293,7 +309,7 @@ class GNSSReader:
 
     def _process_tpv(self, msg: dict[str, Any]) -> GNSSData:
         """Assemble a ``GNSSData`` from a TPV message and stored SKY state."""
-        status: int = msg.get("status", 0)
+        status = _tpv_status(msg)
         fix_quality = _STATUS_TO_FIX_QUALITY.get(status, 0)
         iso_time: str | None = msg.get("time")
         utc_time = _iso_to_utc_time(iso_time) if iso_time else None
