@@ -117,12 +117,14 @@ def _count_used_from_sky(msg: dict[str, Any]) -> int | None:
     return None
 
 
-def _parse_gpsd_status(raw: int) -> _GpsdStatus:
-    """Coerce a raw gpsd status integer to ``_GpsdStatus``.
+def _parse_gpsd_status(raw: object) -> _GpsdStatus:
+    """Coerce a raw gpsd status value to ``_GpsdStatus``.
 
-    Unknown values (not in the enum) fall back to ``NO_FIX`` so that an
-    unrecognised status from a future gpsd version degrades gracefully.
+    Non-integer values (e.g. ``null``) and unknown integers (unrecognised
+    by the enum) both fall back to ``NO_FIX`` for graceful degradation.
     """
+    if not isinstance(raw, int):
+        return _GpsdStatus.NO_FIX
     try:
         return _GpsdStatus(raw)
     except ValueError:
