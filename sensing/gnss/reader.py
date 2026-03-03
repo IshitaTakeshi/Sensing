@@ -17,6 +17,7 @@ import contextlib
 import json
 import socket
 from collections.abc import Iterator
+from enum import IntEnum
 from io import BufferedReader
 from types import TracebackType
 from typing import Any
@@ -39,27 +40,51 @@ _WATCH_CMD = b'?WATCH={"enable":true,"json":true}\n'
 _MPS_TO_KNOTS = 1.94384
 _MPS_TO_KPH = 3.6
 
-# --- gpsd status codes --------------------------------------------------------
+# --- gpsd enumerations --------------------------------------------------------
+
+# Source: https://gpsd.gitlab.io/gpsd/gpsd_json.html
+
+
+class _GpsdMode(IntEnum):
+    """gpsd TPV.mode values."""
+
+    UNKNOWN = 0
+    NO_FIX = 1
+    FIX_2D = 2
+    FIX_3D = 3
+
+
+class _GpsdStatus(IntEnum):
+    """gpsd TPV.status values."""
+
+    NO_FIX = 0
+    NORMAL = 1
+    DGPS = 2
+    RTK_FIXED = 3
+    RTK_FLOAT = 4
+    DR = 5
+
+
+# --- gpsd status mappings -----------------------------------------------------
 
 # gpsd TPV.status -> NMEA GGA fix_quality
-# Source: https://gpsd.gitlab.io/gpsd/gpsd_json.html
 _STATUS_TO_FIX_QUALITY: dict[int, int] = {
-    0: 0,  # No fix    -> Invalid
-    1: 1,  # Normal    -> GPS fix (SPS)
-    2: 2,  # DGPS      -> DGPS fix
-    3: 4,  # RTK Fixed -> RTK Fixed
-    4: 5,  # RTK Float -> RTK Float
-    5: 6,  # DR        -> Dead reckoning
+    _GpsdStatus.NO_FIX: 0,
+    _GpsdStatus.NORMAL: 1,
+    _GpsdStatus.DGPS: 2,
+    _GpsdStatus.RTK_FIXED: 4,
+    _GpsdStatus.RTK_FLOAT: 5,
+    _GpsdStatus.DR: 6,
 }
 
 # gpsd TPV.status -> NMEA VTG FAA mode indicator
 _STATUS_TO_VTG_MODE: dict[int, str] = {
-    0: "N",  # No fix     -> Not valid
-    1: "A",  # Normal GPS -> Autonomous
-    2: "D",  # DGPS       -> Differential
-    3: "D",  # RTK Fixed  -> Differential
-    4: "D",  # RTK Float  -> Differential
-    5: "E",  # DR         -> Estimated
+    _GpsdStatus.NO_FIX: "N",
+    _GpsdStatus.NORMAL: "A",
+    _GpsdStatus.DGPS: "D",
+    _GpsdStatus.RTK_FIXED: "D",
+    _GpsdStatus.RTK_FLOAT: "D",
+    _GpsdStatus.DR: "E",
 }
 
 
@@ -92,20 +117,33 @@ def _count_used_from_sky(msg: dict[str, Any]) -> int | None:
     return None
 
 
-def _tpv_status(msg: dict[str, Any]) -> int:
-    """Return the fix status integer from a TPV message.
+def _parse_gpsd_status(raw: int) -> _GpsdStatus:
+    """Coerce a raw gpsd status integer to ``_GpsdStatus``.
+
+    Unknown values (not in the enum) fall back to ``NO_FIX`` so that an
+    unrecognised status from a future gpsd version degrades gracefully.
+    """
+    try:
+        return _GpsdStatus(raw)
+    except ValueError:
+        return _GpsdStatus.NO_FIX
+
+
+def _tpv_status(msg: dict[str, Any]) -> _GpsdStatus:
+    """Return the fix status from a TPV message.
 
     gpsd 3.25 omits the ``status`` field for some devices (e.g. ZED-F9P).
-    When absent, fall back to ``mode``: values 0/1 mean no fix; 2/3 mean a
-    2D/3D fix, which maps to status 1 (GPS fix).
+    When absent, fall back to ``mode``: ``FIX_2D``/``FIX_3D`` map to
+    ``NORMAL``; ``UNKNOWN``/``NO_FIX`` map to ``NO_FIX``.
     """
     if "status" in msg:
-        status: int = msg["status"]
-        return status
-    mode: int = msg.get("mode", 0)
-    if mode >= 2:
-        return 1
-    return 0
+        return _parse_gpsd_status(msg["status"])
+    mode: object = msg.get("mode", 0)
+    if not isinstance(mode, (int, float)):
+        return _GpsdStatus.NO_FIX
+    if mode >= _GpsdMode.FIX_2D:
+        return _GpsdStatus.NORMAL
+    return _GpsdStatus.NO_FIX
 
 
 def _iso_to_utc_time(iso: str) -> str:

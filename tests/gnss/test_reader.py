@@ -615,3 +615,11 @@ class TestGNSSReaderStatusFallback:
             data = gnss.read()
         assert data.gga.fix_quality == 0
         assert data.gga.valid is False
+
+    def test_null_mode_no_status_fix_quality_is_invalid(self, mock_gpsd):
+        tpv = {"class": "TPV", "mode": None}
+        mock_gpsd.stream.readline.side_effect = [_line(tpv)]
+        with GNSSReader() as gnss:
+            data = gnss.read()
+        assert data.gga.fix_quality == 0
+        assert data.gga.valid is False
