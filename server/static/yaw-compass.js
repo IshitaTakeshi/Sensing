@@ -3,6 +3,7 @@
 const STATIONARY_RATE = 0.05;
 const SLOW_RATE = 0.20;
 const MODERATE_RATE = 0.50;
+const MAX_DELTA_TIME_SECONDS = 0.5;
 
 /** @type {HTMLCanvasElement | null} */
 let _canvas = null;
@@ -45,6 +46,10 @@ export function updateYawCompass(gyroZ, timestampNanoseconds) {
         ? 0
         : (timestampNanoseconds - _lastTimestampNanoseconds) / 1e9;
     _lastTimestampNanoseconds = timestampNanoseconds;
+    if (deltaTime <= 0 || deltaTime > MAX_DELTA_TIME_SECONDS) {
+        _redraw(gyroZ);
+        return;
+    }
     _integratedHeading = (_integratedHeading + gyroZ * deltaTime) % (2 * Math.PI);
     _redraw(gyroZ);
 }
