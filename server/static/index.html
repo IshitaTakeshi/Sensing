@@ -30,10 +30,57 @@
             background: #242424;
             border-left: 1px solid #333;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #444;
-            font-size: 0.85rem;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .imu-sub-panel {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            border-bottom: 1px solid #333;
+        }
+
+        .imu-sub-panel:last-child { border-bottom: none; }
+
+        .panel-title {
+            color: #888;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+            flex-shrink: 0;
+        }
+
+        .imu-canvas {
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            display: block;
+        }
+
+        #compass-readout {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #d0d0d0;
+            padding: 4px 0;
+            flex-shrink: 0;
+        }
+
+        #reset-heading-button {
+            background: #333;
+            color: #aaa;
+            border: 1px solid #444;
+            border-radius: 3px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.75rem;
+            align-self: center;
+            flex-shrink: 0;
+            margin-bottom: 4px;
         }
 
         #status-bar {
@@ -66,7 +113,18 @@
 <body>
 <div id="layout">
     <div id="map-panel"><div id="map"></div></div>
-    <div id="imu-panel">IMU panels - coming in #40</div>
+    <div id="imu-panel">
+        <div class="imu-sub-panel">
+            <div class="panel-title">Accel X-Y</div>
+            <canvas id="accel-canvas" class="imu-canvas"></canvas>
+        </div>
+        <div class="imu-sub-panel">
+            <div class="panel-title">Yaw Rate</div>
+            <canvas id="compass-canvas" class="imu-canvas"></canvas>
+            <div id="compass-readout">+0.0 °/s</div>
+            <button id="reset-heading-button">Reset heading</button>
+        </div>
+    </div>
     <div id="status-bar" class="stale">
         <div class="stat" id="stat-fix">
             <span class="stat-label">Fix</span>
@@ -103,6 +161,6 @@
     </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
