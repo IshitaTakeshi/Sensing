@@ -38,6 +38,9 @@ export function updateAccelScatter(accelX, accelY) {
     _redraw();
 }
 
+/**
+ * @returns {void}
+ */
 function _onResize() {
     if (_canvas == null) return;
     const ratio = window.devicePixelRatio || 1;
@@ -50,36 +53,51 @@ function _onResize() {
     _redraw();
 }
 
-function _computeLayout() {
-    _centerX = _canvas.clientWidth / 2;
-    _centerY = _canvas.clientHeight / 2;
+/**
+ * @param {HTMLCanvasElement} canvas
+ * @returns {void}
+ */
+function _computeLayout(canvas) {
+    _centerX = canvas.clientWidth / 2;
+    _centerY = canvas.clientHeight / 2;
     _pixelsPerMs2 = Math.min(_centerX, _centerY) / AXIS_RANGE_MS2;
 }
 
+/**
+ * @returns {void}
+ */
 function _redraw() {
     if (_canvas == null) return;
     if (_canvas.clientWidth === 0 || _canvas.clientHeight === 0) return;
     const context = _canvas.getContext('2d');
     if (context == null) return;
-    _computeLayout();
-    context.clearRect(0, 0, _canvas.clientWidth, _canvas.clientHeight);
+    _computeLayout(_canvas);
+    context.clearRect(0, 0, _centerX * 2, _centerY * 2);
     _drawAxes(context);
     _drawTrail(context);
 }
 
+/**
+ * @param {CanvasRenderingContext2D} context
+ * @returns {void}
+ */
 function _drawAxes(context) {
     context.strokeStyle = '#444';
     context.lineWidth = 1;
     context.beginPath();
     context.moveTo(0, _centerY);
-    context.lineTo(_canvas.clientWidth, _centerY);
+    context.lineTo(_centerX * 2, _centerY);
     context.moveTo(_centerX, 0);
-    context.lineTo(_centerX, _canvas.clientHeight);
+    context.lineTo(_centerX, _centerY * 2);
     context.stroke();
     _drawScale(context);
     _drawLabels(context);
 }
 
+/**
+ * @param {CanvasRenderingContext2D} context
+ * @returns {void}
+ */
 function _drawScale(context) {
     const ticks = [-2, -1, 1, 2];
     context.strokeStyle = '#333';
@@ -95,17 +113,25 @@ function _drawScale(context) {
     }
 }
 
+/**
+ * @param {CanvasRenderingContext2D} context
+ * @returns {void}
+ */
 function _drawLabels(context) {
     context.fillStyle = '#666';
     context.font = '11px monospace';
     context.textAlign = 'center';
     context.textBaseline = 'alphabetic';
-    context.fillText('X (m/s²)', _centerX, _canvas.clientHeight - 6);
+    context.fillText('X (m/s²)', _centerX, _centerY * 2 - 6);
     context.textAlign = 'left';
     context.textBaseline = 'top';
     context.fillText('Y (m/s²)', _centerX + 4, 6);
 }
 
+/**
+ * @param {CanvasRenderingContext2D} context
+ * @returns {void}
+ */
 function _drawTrail(context) {
     for (let index = 0; index < _trailPoints.length; index++) {
         _drawPoint(context, index);
@@ -113,6 +139,11 @@ function _drawTrail(context) {
     context.globalAlpha = 1;
 }
 
+/**
+ * @param {CanvasRenderingContext2D} context
+ * @param {number} pointIndex
+ * @returns {void}
+ */
 function _drawPoint(context, pointIndex) {
     const alpha = (pointIndex + 1) / _trailPoints.length;
     const point = _trailPoints[pointIndex];

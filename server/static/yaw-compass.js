@@ -1,8 +1,7 @@
 /* Yaw rate compass — integrated heading needle and instantaneous rate arc. */
 
-const STATIONARY_RATE = 0.05;
-const SLOW_RATE = 0.20;
-const MODERATE_RATE = 0.50;
+import { drawCompassRing, drawRateArc, drawHeadingNeedle, updateReadout } from './yaw-compass-draw.js';
+
 const MAX_DELTA_TIME_SECONDS = 0.2;
 
 /** @type {HTMLCanvasElement | null} */
@@ -15,10 +14,6 @@ let _integratedHeading = 0;
 
 /** @type {number | null} */
 let _lastTimestampNanoseconds = null;
-
-let _centerX = 0;
-let _centerY = 0;
-let _radius = 0;
 
 /**
  * Initialises the yaw compass panel, wiring up the canvas and reset button.
@@ -54,17 +49,22 @@ export function updateYawCompass(gyroZ, timestampNanoseconds) {
         _redraw(gyroZ);
         return;
     }
-    const clampedDelta = Math.min(deltaTime, MAX_DELTA_TIME_SECONDS);
-    _integratedHeading = (_integratedHeading + gyroZ * clampedDelta) % (2 * Math.PI);
+    _integratedHeading = _integrate(_integratedHeading, deltaTime, gyroZ);
     _redraw(gyroZ);
 }
 
+/**
+ * @returns {void}
+ */
 function _resetHeading() {
     _integratedHeading = 0;
     _lastTimestampNanoseconds = /** @type {number | null} */ (null);
     _redraw(0);
 }
 
+/**
+ * @returns {void}
+ */
 function _onResize() {
     if (_canvas == null) return;
     const ratio = window.devicePixelRatio || 1;
@@ -77,66 +77,41 @@ function _onResize() {
     _redraw(0);
 }
 
-function _computeCompassLayout() {
-    _centerX = _canvas.clientWidth / 2;
-    _centerY = _canvas.clientHeight / 2;
-    _radius = Math.min(_centerX, _centerY) - 10;
+/**
+ * @param {number} currentHeading - Current integrated heading in radians.
+ * @param {number} deltaTime - Elapsed time in seconds.
+ * @param {number} gyroZ - Angular rate around the Z axis in rad/s.
+ * @returns {number} New integrated heading in radians.
+ */
+function _integrate(currentHeading, deltaTime, gyroZ) {
+    const clampedDelta = Math.min(deltaTime, MAX_DELTA_TIME_SECONDS);
+    return (currentHeading + gyroZ * clampedDelta) % (2 * Math.PI);
 }
 
+/**
+ * @param {HTMLCanvasElement} canvas
+ * @returns {{centerX: number, centerY: number, radius: number}}
+ */
+function _computeCompassGeometry(canvas) {
+    const centerX = canvas.clientWidth / 2;
+    const centerY = canvas.clientHeight / 2;
+    const radius = Math.min(centerX, centerY) - 10;
+    return { centerX, centerY, radius };
+}
+
+/**
+ * @param {number} gyroZ
+ * @returns {void}
+ */
 function _redraw(gyroZ) {
     if (_canvas == null) return;
     if (_canvas.clientWidth === 0 || _canvas.clientHeight === 0) return;
     const context = _canvas.getContext('2d');
     if (context == null) return;
-    _computeCompassLayout();
+    const geometry = _computeCompassGeometry(_canvas);
     context.clearRect(0, 0, _canvas.clientWidth, _canvas.clientHeight);
-    _drawCompassRing(context);
-    _drawRateArc(context, gyroZ);
-    _drawHeadingNeedle(context);
-    _updateReadout(gyroZ);
-}
-
-function _computeArcColor(absGyroZ) {
-    if (absGyroZ <= STATIONARY_RATE) return '#6ab0f5';
-    if (absGyroZ <= SLOW_RATE) return '#4ec97c';
-    if (absGyroZ <= MODERATE_RATE) return '#d4a835';
-    return '#e05555';
-}
-
-function _drawCompassRing(context) {
-    context.beginPath();
-    context.arc(_centerX, _centerY, _radius, 0, 2 * Math.PI);
-    context.strokeStyle = '#444';
-    context.lineWidth = 2;
-    context.stroke();
-}
-
-function _drawHeadingNeedle(context) {
-    const needleAngle = _integratedHeading - Math.PI / 2;
-    const tipX = _centerX + _radius * 0.8 * Math.cos(needleAngle);
-    const tipY = _centerY + _radius * 0.8 * Math.sin(needleAngle);
-    context.beginPath();
-    context.moveTo(_centerX, _centerY);
-    context.lineTo(tipX, tipY);
-    context.strokeStyle = '#d0d0d0';
-    context.lineWidth = 2;
-    context.stroke();
-}
-
-function _drawRateArc(context, gyroZ) {
-    const arcLength = Math.min(Math.abs(gyroZ), Math.PI);
-    const startAngle = -Math.PI / 2;
-    const endAngle = startAngle + Math.sign(gyroZ) * arcLength;
-    context.beginPath();
-    context.arc(_centerX, _centerY, _radius, startAngle, endAngle, gyroZ < 0);
-    context.strokeStyle = _computeArcColor(Math.abs(gyroZ));
-    context.lineWidth = 6;
-    context.stroke();
-}
-
-function _updateReadout(gyroZ) {
-    if (_readoutElement == null) return;
-    const degreesPerSecond = (gyroZ * 180 / Math.PI).toFixed(1);
-    const sign = gyroZ >= 0 ? '+' : '';
-    _readoutElement.textContent = `${sign}${degreesPerSecond} °/s`;
+    drawCompassRing(context, geometry);
+    drawRateArc(context, geometry, gyroZ);
+    drawHeadingNeedle(context, geometry, _integratedHeading);
+    updateReadout(_readoutElement, gyroZ);
 }
