@@ -62,9 +62,9 @@ export function drawHeadingNeedle(context, geometry, heading) {
 export function drawRateArc(context, geometry, gyroZ) {
     const arcLength = Math.min(Math.abs(gyroZ), Math.PI);
     const startAngle = -Math.PI / 2;
-    const endAngle = startAngle + Math.sign(gyroZ) * arcLength;
+    const endAngle = startAngle - Math.sign(gyroZ) * arcLength;
     context.beginPath();
-    context.arc(geometry.centerX, geometry.centerY, geometry.radius, startAngle, endAngle, gyroZ < 0);
+    context.arc(geometry.centerX, geometry.centerY, geometry.radius, startAngle, endAngle, gyroZ > 0);
     context.strokeStyle = _computeArcColor(Math.abs(gyroZ));
     context.lineWidth = 6;
     context.stroke();
