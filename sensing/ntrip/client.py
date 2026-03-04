@@ -120,8 +120,8 @@ class NTRIPClient:
         cfg = self._config
         with socket.create_connection((cfg.host, cfg.port)) as sock:
             sock.sendall(self._build_request())
-            sock_file: io.BufferedReader = sock.makefile("rb")
-            _read_headers(sock_file)
-            sock.settimeout(_SOCKET_TIMEOUT)
-            with open(cfg.serial_device, "wb", buffering=0) as serial:
-                _forward(sock_file, serial, self._cancel)
+            with sock.makefile("rb") as sock_file:
+                _read_headers(sock_file)
+                sock.settimeout(_SOCKET_TIMEOUT)
+                with open(cfg.serial_device, "wb", buffering=0) as serial:
+                    _forward(sock_file, serial, self._cancel)

@@ -21,6 +21,8 @@ _CFG_AUTH = NTRIPConfig(
 def _make_stream(headers: list[bytes], chunks: list[bytes]) -> MagicMock:
     """Return a mock BufferedReader with preset header and data responses."""
     mock = MagicMock(spec=io.BufferedReader)
+    mock.__enter__ = MagicMock(return_value=mock)
+    mock.__exit__ = MagicMock(return_value=False)
     mock.readline.side_effect = headers
     mock.read1.side_effect = chunks
     return mock
