@@ -61,6 +61,14 @@
             display: block;
         }
 
+        #accel-readout {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #d0d0d0;
+            padding: 4px 0;
+            flex-shrink: 0;
+        }
+
         #compass-readout {
             text-align: center;
             font-size: 0.9rem;
@@ -117,6 +125,7 @@
         <div class="imu-sub-panel">
             <div class="panel-title">Accel X-Y</div>
             <canvas id="accel-canvas" class="imu-canvas"></canvas>
+            <div id="accel-readout">X +0.000  Y +0.000 m/s²</div>
         </div>
         <div class="imu-sub-panel">
             <div class="panel-title">Yaw Rate</div>

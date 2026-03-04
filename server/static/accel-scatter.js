@@ -6,6 +6,9 @@ const AXIS_RANGE_MS2 = 2;
 /** @type {HTMLCanvasElement | null} */
 let _canvas = null;
 
+/** @type {HTMLElement | null} */
+let _readoutElement = null;
+
 /** @type {Array<{x: number, y: number}>} */
 const _trailPoints = [];
 
@@ -20,6 +23,7 @@ let _pixelsPerMs2 = 0;
 export function initAccelScatter() {
     _canvas = document.getElementById('accel-canvas');
     if (_canvas == null) return;
+    _readoutElement = document.getElementById('accel-readout');
     new ResizeObserver(_onResize).observe(_canvas);
     _onResize();
 }
@@ -35,7 +39,20 @@ export function updateAccelScatter(accelX, accelY) {
     if (_trailPoints.length > MAX_TRAIL_POINTS) {
         _trailPoints.shift();
     }
+    _updateReadout(accelX, accelY);
     _redraw();
+}
+
+/**
+ * @param {number} accelX
+ * @param {number} accelY
+ * @returns {void}
+ */
+function _updateReadout(accelX, accelY) {
+    if (_readoutElement == null) return;
+    const signX = accelX >= 0 ? '+' : '';
+    const signY = accelY >= 0 ? '+' : '';
+    _readoutElement.textContent = `X ${signX}${accelX.toFixed(3)}  Y ${signY}${accelY.toFixed(3)} m/s²`;
 }
 
 /**
