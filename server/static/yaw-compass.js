@@ -3,6 +3,7 @@
 const STATIONARY_RATE = 0.05;
 const SLOW_RATE = 0.20;
 const MODERATE_RATE = 0.50;
+const MAX_DELTA_TIME_SECONDS = 0.2;
 
 /** @type {HTMLCanvasElement | null} */
 let _canvas = null;
@@ -32,6 +33,7 @@ export function initYawCompass() {
         resetButton.addEventListener('click', _resetHeading);
     }
     new ResizeObserver(_onResize).observe(_canvas);
+    _onResize();
 }
 
 /**
@@ -41,39 +43,53 @@ export function initYawCompass() {
  * @returns {void}
  */
 export function updateYawCompass(gyroZ, timestampNanoseconds) {
-    const deltaTime = _lastTimestampNanoseconds == null
-        ? 0
-        : (timestampNanoseconds - _lastTimestampNanoseconds) / 1e9;
+    if (_lastTimestampNanoseconds == null) {
+        _lastTimestampNanoseconds = timestampNanoseconds;
+        _redraw(gyroZ);
+        return;
+    }
+    const deltaTime = (timestampNanoseconds - _lastTimestampNanoseconds) / 1e9;
     _lastTimestampNanoseconds = timestampNanoseconds;
-    _integratedHeading = (_integratedHeading + gyroZ * deltaTime) % (2 * Math.PI);
+    if (deltaTime <= 0) {
+        _redraw(gyroZ);
+        return;
+    }
+    const clampedDelta = Math.min(deltaTime, MAX_DELTA_TIME_SECONDS);
+    _integratedHeading = (_integratedHeading + gyroZ * clampedDelta) % (2 * Math.PI);
     _redraw(gyroZ);
 }
 
 function _resetHeading() {
     _integratedHeading = 0;
+    _lastTimestampNanoseconds = /** @type {number | null} */ (null);
     _redraw(0);
 }
 
 function _onResize() {
     if (_canvas == null) return;
-    _canvas.width = _canvas.clientWidth;
-    _canvas.height = _canvas.clientHeight;
+    const ratio = window.devicePixelRatio || 1;
+    _canvas.width = _canvas.clientWidth * ratio;
+    _canvas.height = _canvas.clientHeight * ratio;
+    const context = _canvas.getContext('2d');
+    if (context != null) {
+        context.scale(ratio, ratio);
+    }
     _redraw(0);
 }
 
 function _computeCompassLayout() {
-    _centerX = _canvas.width / 2;
-    _centerY = _canvas.height / 2;
+    _centerX = _canvas.clientWidth / 2;
+    _centerY = _canvas.clientHeight / 2;
     _radius = Math.min(_centerX, _centerY) - 10;
 }
 
 function _redraw(gyroZ) {
     if (_canvas == null) return;
-    if (_canvas.width === 0 || _canvas.height === 0) return;
+    if (_canvas.clientWidth === 0 || _canvas.clientHeight === 0) return;
     const context = _canvas.getContext('2d');
     if (context == null) return;
     _computeCompassLayout();
-    context.clearRect(0, 0, _canvas.width, _canvas.height);
+    context.clearRect(0, 0, _canvas.clientWidth, _canvas.clientHeight);
     _drawCompassRing(context);
     _drawRateArc(context, gyroZ);
     _drawHeadingNeedle(context);

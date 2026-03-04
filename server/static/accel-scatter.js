@@ -21,6 +21,7 @@ export function initAccelScatter() {
     _canvas = document.getElementById('accel-canvas');
     if (_canvas == null) return;
     new ResizeObserver(_onResize).observe(_canvas);
+    _onResize();
 }
 
 /**
@@ -39,24 +40,29 @@ export function updateAccelScatter(accelX, accelY) {
 
 function _onResize() {
     if (_canvas == null) return;
-    _canvas.width = _canvas.clientWidth;
-    _canvas.height = _canvas.clientHeight;
+    const ratio = window.devicePixelRatio || 1;
+    _canvas.width = _canvas.clientWidth * ratio;
+    _canvas.height = _canvas.clientHeight * ratio;
+    const context = _canvas.getContext('2d');
+    if (context != null) {
+        context.scale(ratio, ratio);
+    }
     _redraw();
 }
 
 function _computeLayout() {
-    _centerX = _canvas.width / 2;
-    _centerY = _canvas.height / 2;
+    _centerX = _canvas.clientWidth / 2;
+    _centerY = _canvas.clientHeight / 2;
     _pixelsPerMs2 = Math.min(_centerX, _centerY) / AXIS_RANGE_MS2;
 }
 
 function _redraw() {
     if (_canvas == null) return;
-    if (_canvas.width === 0 || _canvas.height === 0) return;
+    if (_canvas.clientWidth === 0 || _canvas.clientHeight === 0) return;
     const context = _canvas.getContext('2d');
     if (context == null) return;
     _computeLayout();
-    context.clearRect(0, 0, _canvas.width, _canvas.height);
+    context.clearRect(0, 0, _canvas.clientWidth, _canvas.clientHeight);
     _drawAxes(context);
     _drawTrail(context);
 }
@@ -66,9 +72,9 @@ function _drawAxes(context) {
     context.lineWidth = 1;
     context.beginPath();
     context.moveTo(0, _centerY);
-    context.lineTo(_canvas.width, _centerY);
+    context.lineTo(_canvas.clientWidth, _centerY);
     context.moveTo(_centerX, 0);
-    context.lineTo(_centerX, _canvas.height);
+    context.lineTo(_centerX, _canvas.clientHeight);
     context.stroke();
     _drawScale(context);
     _drawLabels(context);
@@ -94,7 +100,7 @@ function _drawLabels(context) {
     context.font = '11px monospace';
     context.textAlign = 'center';
     context.textBaseline = 'alphabetic';
-    context.fillText('X (m/s²)', _centerX, _canvas.height - 6);
+    context.fillText('X (m/s²)', _centerX, _canvas.clientHeight - 6);
     context.textAlign = 'left';
     context.textBaseline = 'top';
     context.fillText('Y (m/s²)', _centerX + 4, 6);
