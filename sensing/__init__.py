@@ -1,4 +1,4 @@
-"""Sensing package for GNSS and IMU data processing."""
+"""Sensing package for GNSS, IMU, and NTRIP data processing."""
 
 from sensing.gnss import GNSSData, GNSSReader
 from sensing.imu import IMUData, IMUReader
@@ -9,6 +9,7 @@ from sensing.nmea import (
     parse_vtg,
     validate_checksum,
 )
+from sensing.ntrip import NTRIPClient, NTRIPConfig
 
 __all__ = [
     "GGAData",
@@ -16,6 +17,8 @@ __all__ = [
     "GNSSReader",
     "IMUData",
     "IMUReader",
+    "NTRIPClient",
+    "NTRIPConfig",
     "VTGData",
     "parse_gga",
     "parse_vtg",
