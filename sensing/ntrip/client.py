@@ -44,6 +44,28 @@ def _read_headers(sock_file: io.BufferedReader) -> None:
             break
 
 
+def _write_all(serial: io.RawIOBase, data: bytes) -> None:
+    """Write all bytes to serial, retrying on partial writes.
+
+    ``io.RawIOBase.write()`` may write fewer bytes than requested. Loop
+    over a ``memoryview`` of the remaining data until all bytes are sent.
+
+    Args:
+        serial: Raw IO stream for the serial device.
+        data: Bytes to write in full.
+
+    Raises:
+        OSError: If ``serial.write()`` returns ``None`` (non-blocking device
+            not ready) or propagates an OS-level write error.
+    """
+    view = memoryview(data)
+    while view:
+        written = serial.write(view)
+        if written is None:
+            raise OSError("serial.write() returned None — device not ready")
+        view = view[written:]
+
+
 def _forward(
     source: io.BufferedReader,
     serial: io.RawIOBase,
@@ -61,7 +83,7 @@ def _forward(
             data = source.read1(_CHUNK)
             if not data:
                 break
-            serial.write(data)
+            _write_all(serial, data)
         except TimeoutError:
             continue
 

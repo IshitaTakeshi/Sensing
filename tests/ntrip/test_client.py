@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sensing.ntrip import NTRIPClient, NTRIPConfig
-from sensing.ntrip.client import _parse_status_code
+from sensing.ntrip.client import _parse_status_code, _write_all
 
 _CFG = NTRIPConfig("rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5")
 _CFG_AUTH = NTRIPConfig(
@@ -44,6 +44,7 @@ def mock_ntrip(monkeypatch):
     serial = MagicMock()
     serial.__enter__ = MagicMock(return_value=serial)
     serial.__exit__ = MagicMock(return_value=False)
+    serial.write.side_effect = len  # simulate a full write every call
     monkeypatch.setattr("builtins.open", MagicMock(return_value=serial))
 
     return SimpleNamespace(sock=sock, serial=serial)
@@ -96,6 +97,38 @@ class TestBuildRequest:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# _write_all
+# ---------------------------------------------------------------------------
+
+
+class TestWriteAll:
+    def test_single_write_completes(self):
+        serial = MagicMock(spec=io.RawIOBase)
+        data = b"\xD3\x00\x13"
+        serial.write.return_value = len(data)
+        _write_all(serial, data)
+        serial.write.assert_called_once()
+
+    def test_partial_write_retries_remainder(self):
+        serial = MagicMock(spec=io.RawIOBase)
+        data = b"\xD3\x00\x13\x43\x50"
+        serial.write.side_effect = [2, 3]
+        _write_all(serial, data)
+        assert serial.write.call_count == 2
+
+    def test_none_return_raises_os_error(self):
+        serial = MagicMock(spec=io.RawIOBase)
+        serial.write.return_value = None
+        with pytest.raises(OSError, match="returned None"):
+            _write_all(serial, b"\xD3\x00")
+
+
+# ---------------------------------------------------------------------------
+# TestStream
+# ---------------------------------------------------------------------------
+
+
 class TestStream:
     def test_icy_200_writes_rtcm3_to_serial(self, mock_ntrip):
         rtcm = b"\xD3\x00\x13\x43\x50"
@@ -104,7 +137,8 @@ class TestStream:
         )
         with NTRIPClient(_CFG) as client:
             client.stream()
-        mock_ntrip.serial.write.assert_called_once_with(rtcm)
+        written = b"".join(bytes(call.args[0]) for call in mock_ntrip.serial.write.call_args_list)
+        assert written == rtcm
 
     def test_non_200_raises_connection_error(self, mock_ntrip):
         mock_ntrip.sock.makefile.return_value = _make_stream(
