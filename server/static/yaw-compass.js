@@ -2,7 +2,7 @@
 
 import { drawCompassRing, drawRateArc, drawHeadingNeedle, updateReadout } from './yaw-compass-draw.js';
 
-const MAX_DELTA_TIME_SECONDS = 0.2;
+const MAX_DELTA_TIME_SECONDS = 0.5;
 
 /** @type {HTMLCanvasElement | null} */
 let _canvas = null;
@@ -45,7 +45,7 @@ export function updateYawCompass(gyroZ, timestampNanoseconds) {
     }
     const deltaTime = (timestampNanoseconds - _lastTimestampNanoseconds) / 1e9;
     _lastTimestampNanoseconds = timestampNanoseconds;
-    if (deltaTime <= 0) {
+    if (deltaTime <= 0 || deltaTime > MAX_DELTA_TIME_SECONDS) {
         _redraw(gyroZ);
         return;
     }
@@ -84,8 +84,7 @@ function _onResize() {
  * @returns {number} New integrated heading in radians.
  */
 function _integrate(currentHeading, deltaTime, gyroZ) {
-    const clampedDelta = Math.min(deltaTime, MAX_DELTA_TIME_SECONDS);
-    return (currentHeading + gyroZ * clampedDelta) % (2 * Math.PI);
+    return (currentHeading + gyroZ * deltaTime) % (2 * Math.PI);
 }
 
 /**
