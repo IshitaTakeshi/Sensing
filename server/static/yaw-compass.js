@@ -84,7 +84,7 @@ function _onResize() {
  * @returns {number} New integrated heading in radians.
  */
 function _integrate(currentHeading, deltaTime, gyroZ) {
-    return (currentHeading + gyroZ * deltaTime) % (2 * Math.PI);
+    return (currentHeading - gyroZ * deltaTime) % (2 * Math.PI);
 }
 
 /**
