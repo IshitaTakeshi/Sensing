@@ -141,7 +141,13 @@ class TestWriteAll:
     def test_none_return_raises_os_error(self):
         serial = MagicMock(spec=io.RawIOBase)
         serial.write.return_value = None
-        with pytest.raises(OSError, match="returned None"):
+        with pytest.raises(OSError, match="no progress"):
+            _write_all(serial, b"\xD3\x00")
+
+    def test_zero_return_raises_os_error(self):
+        serial = MagicMock(spec=io.RawIOBase)
+        serial.write.return_value = 0
+        with pytest.raises(OSError, match="no progress"):
             _write_all(serial, b"\xD3\x00")
 
 

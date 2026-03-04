@@ -55,14 +55,14 @@ def _write_all(serial: io.RawIOBase, data: bytes) -> None:
         data: Bytes to write in full.
 
     Raises:
-        OSError: If ``serial.write()`` returns ``None`` (non-blocking device
-            not ready) or propagates an OS-level write error.
+        OSError: If ``serial.write()`` returns ``None`` or makes no progress
+            (returns 0), which would otherwise cause an infinite loop.
     """
     view = memoryview(data)
     while view:
         written = serial.write(view)
-        if written is None:
-            raise OSError("serial.write() returned None — device not ready")
+        if written is None or written <= 0:
+            raise OSError(f"serial.write() returned {written!r} — no progress")
         view = view[written:]
 
 
