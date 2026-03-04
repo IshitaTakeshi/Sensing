@@ -88,6 +88,19 @@ def _forward(
             continue
 
 
+def _basic_auth_header(username: str, password: str) -> str | None:
+    """Return a Basic Auth header line, or ``None`` if either credential is empty.
+
+    Both ``username`` and ``password`` must be non-empty to produce a header.
+    Supplying only one is treated as no credentials to avoid sending a
+    malformed ``:<password>`` or ``username:`` credential string.
+    """
+    if not username or not password:
+        return None
+    creds = base64.b64encode(f"{username}:{password}".encode()).decode()
+    return f"Authorization: Basic {creds}"
+
+
 class NTRIPClient:
     """Context manager for streaming RTCM3 from an NTRIP caster to a serial device.
 
@@ -127,9 +140,9 @@ class NTRIPClient:
             "Ntrip-Version: Ntrip/1.0",
             "User-Agent: NTRIP sensing/1.0",
         ]
-        if cfg.username or cfg.password:
-            creds = base64.b64encode(f"{cfg.username}:{cfg.password}".encode()).decode()
-            lines.append(f"Authorization: Basic {creds}")
+        auth = _basic_auth_header(cfg.username, cfg.password)
+        if auth is not None:
+            lines.append(auth)
         lines.extend(["", ""])
         return "\r\n".join(lines).encode("ascii")
 

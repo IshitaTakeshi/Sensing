@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sensing.ntrip import NTRIPClient, NTRIPConfig
-from sensing.ntrip.client import _parse_status_code, _write_all
+from sensing.ntrip.client import _basic_auth_header, _parse_status_code, _write_all
 
 _CFG = NTRIPConfig("rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5")
 _CFG_AUTH = NTRIPConfig(
@@ -70,6 +70,27 @@ class TestParseStatusCode:
 
     def test_malformed_returns_zero(self):
         assert _parse_status_code("GARBAGE") == 0
+
+
+# ---------------------------------------------------------------------------
+# _basic_auth_header
+# ---------------------------------------------------------------------------
+
+
+class TestBasicAuthHeader:
+    def test_both_set_returns_header(self):
+        header = _basic_auth_header("user", "pass")
+        assert header is not None
+        assert header.startswith("Authorization: Basic ")
+
+    def test_only_username_returns_none(self):
+        assert _basic_auth_header("user", "") is None
+
+    def test_only_password_returns_none(self):
+        assert _basic_auth_header("", "pass") is None
+
+    def test_both_empty_returns_none(self):
+        assert _basic_auth_header("", "") is None
 
 
 # ---------------------------------------------------------------------------
