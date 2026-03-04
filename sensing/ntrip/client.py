@@ -14,14 +14,29 @@ _SOCKET_TIMEOUT = 1.0  # seconds; determines maximum cancel() latency
 _CHUNK = 4096
 
 
+def _parse_status_code(first_line: str) -> int:
+    """Parse the HTTP/NTRIP status code from the first response line.
+
+    Supports both ``HTTP/1.0 200 OK`` and ``ICY 200 OK`` formats.
+    Returns 0 if the line is malformed or the code is not an integer.
+    """
+    parts = first_line.split(None, 2)
+    if len(parts) < 2:
+        return 0
+    try:
+        return int(parts[1])
+    except ValueError:
+        return 0
+
+
 def _read_headers(sock_file: io.BufferedReader) -> None:
     """Read NTRIP response headers; raise ConnectionError on non-200 status.
 
     Raises:
-        ConnectionError: If the first response line does not contain ``200``.
+        ConnectionError: If the status code in the first response line is not 200.
     """
     first = sock_file.readline().decode("ascii", errors="replace").strip()
-    if "200" not in first:
+    if _parse_status_code(first) != 200:
         raise ConnectionError(f"NTRIP caster rejected connection: {first!r}")
     while True:
         line = sock_file.readline()

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sensing.ntrip import NTRIPClient, NTRIPConfig
+from sensing.ntrip.client import _parse_status_code
 
 _CFG = NTRIPConfig("rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5")
 _CFG_AUTH = NTRIPConfig(
@@ -44,6 +45,28 @@ def mock_ntrip(monkeypatch):
     monkeypatch.setattr("builtins.open", MagicMock(return_value=serial))
 
     return SimpleNamespace(sock=sock, serial=serial)
+
+
+# ---------------------------------------------------------------------------
+# _parse_status_code
+# ---------------------------------------------------------------------------
+
+
+class TestParseStatusCode:
+    def test_http_200(self):
+        assert _parse_status_code("HTTP/1.0 200 OK") == 200
+
+    def test_icy_200(self):
+        assert _parse_status_code("ICY 200 OK") == 200
+
+    def test_http_401(self):
+        assert _parse_status_code("HTTP/1.0 401 Unauthorized") == 401
+
+    def test_line_containing_200_but_non_200_code(self):
+        assert _parse_status_code("HTTP/1.0 404 Error 200 details") == 404
+
+    def test_malformed_returns_zero(self):
+        assert _parse_status_code("GARBAGE") == 0
 
 
 # ---------------------------------------------------------------------------
