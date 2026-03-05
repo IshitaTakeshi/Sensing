@@ -1,0 +1,16 @@
+name: Gemini Code Review
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: google-gemini/gemini-code-assist@v1
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
