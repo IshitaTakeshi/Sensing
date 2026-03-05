@@ -153,10 +153,10 @@ class NTRIPClient:
             ConnectionError: If the caster returns a non-200 response.
         """
         cfg = self._config
-        with socket.create_connection((cfg.host, cfg.port)) as sock:
+        address = (cfg.host, cfg.port)
+        with socket.create_connection(address, timeout=_SOCKET_TIMEOUT) as sock:
             sock.sendall(_build_request(cfg))
             with sock.makefile("rb") as sock_file:
                 _read_headers(sock_file)
-                sock.settimeout(_SOCKET_TIMEOUT)
                 with open(cfg.serial_device, "wb", buffering=0) as serial:
                     _forward(sock_file, serial, self._cancel)
