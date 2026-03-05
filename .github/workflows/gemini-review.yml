@@ -2,6 +2,8 @@ name: Gemini Code Review
 
 on:
   pull_request:
+    # It's best practice to trigger on these specific PR events
+    types: [opened, synchronize, reopened]
     branches: [main]
 
 jobs:
@@ -9,14 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: write # Crucial: Allows Gemini to post the comment
+      issues: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Run Gemini PR Review
         uses: google-github-actions/run-gemini-cli@v0
+        env:
+          # The CLI needs the GitHub token to read the PR and post the review
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: gemini-2.5-flash
-          prompt: "Please review the code changes in this pull request and provide constructive feedback."
+          # gemini_model: gemini-2.5-flash (Optional: The CLI usually defaults to an optimal model, but you can specify it if you prefer)
