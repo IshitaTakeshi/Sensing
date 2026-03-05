@@ -29,8 +29,28 @@ def _parse_status_code(first_line: str) -> int:
         return 0
 
 
-def _read_headers(sock_file: io.BufferedReader) -> None:
+def _drain_headers(sock_file: io.BufferedReader, cancel: threading.Event) -> None:
+    """Read and discard header lines until a blank line or cancel is set.
+
+    Args:
+        sock_file: Buffered reader wrapping the NTRIP TCP socket.
+        cancel: Event that signals the loop to stop.
+    """
+    while not cancel.is_set():
+        try:
+            line = sock_file.readline()
+        except TimeoutError:
+            continue
+        if line in (b"\r\n", b"\n", b""):
+            return
+
+
+def _read_headers(sock_file: io.BufferedReader, cancel: threading.Event) -> None:
     """Read NTRIP response headers; raise ConnectionError on non-200 status.
+
+    Args:
+        sock_file: Buffered reader wrapping the NTRIP TCP socket.
+        cancel: Event that signals the loop to stop.
 
     Raises:
         ConnectionError: If the status code in the first response line is not 200.
@@ -38,10 +58,7 @@ def _read_headers(sock_file: io.BufferedReader) -> None:
     first = sock_file.readline().decode("ascii", errors="replace").strip()
     if _parse_status_code(first) != 200:
         raise ConnectionError(f"NTRIP caster rejected connection: {first!r}")
-    while True:
-        line = sock_file.readline()
-        if line in (b"\r\n", b"\n", b""):
-            break
+    _drain_headers(sock_file, cancel)
 
 
 def _write_all(serial: io.RawIOBase, data: bytes) -> None:
@@ -157,6 +174,8 @@ class NTRIPClient:
         with socket.create_connection(address, timeout=_SOCKET_TIMEOUT) as sock:
             sock.sendall(_build_request(cfg))
             with sock.makefile("rb") as sock_file:
-                _read_headers(sock_file)
+                _read_headers(sock_file, self._cancel)
+                if self._cancel.is_set():
+                    return
                 with open(cfg.serial_device, "wb", buffering=0) as serial:
                     _forward(sock_file, serial, self._cancel)
