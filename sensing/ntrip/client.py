@@ -1,12 +1,14 @@
 """NTRIP v1 client: streams RTCM3 corrections to a serial device."""
 
 import base64
+import contextlib
 import io
 import socket
 import threading
 from collections.abc import Callable
 from types import TracebackType
 
+from sensing.concurrency import RepeatingTask
 from sensing.nmea.formatter import format_gga
 from sensing.nmea.types import GGAData
 from sensing.ntrip.config import NTRIPConfig
@@ -100,53 +102,25 @@ def _make_gga_sender(
     return _send
 
 
-def _gga_loop(
-    gga_sender: Callable[[], None],
-    cancel: threading.Event,
-    gga_interval: float,
-) -> None:
-    """Send GGA to the caster at regular intervals until cancel is set.
-
-    Sends once immediately on entry, then waits ``gga_interval`` seconds between
-    subsequent sends. ``cancel.wait()`` is used instead of ``time.sleep()`` so
-    the thread wakes up instantly when ``cancel`` is set rather than waiting out
-    the full interval.
-
-    Args:
-        gga_sender: Callable that sends one GGA sentence to the caster socket.
-        cancel: Event that signals the loop to stop.
-        gga_interval: Seconds to wait between consecutive GGA sends.
-    """
-    gga_sender()
-    while not cancel.wait(gga_interval):
-        gga_sender()
-
-
-def _maybe_start_gga_thread(
+def _make_gga_task(
     sock: socket.socket,
     gga_provider: Callable[[], GGAData | None] | None,
-    cancel: threading.Event,
     gga_interval: float,
-) -> threading.Thread | None:
-    """Start a GGA sender daemon thread if a provider is given; else return ``None``.
+) -> contextlib.AbstractContextManager[object]:
+    """Return a RepeatingTask for GGA sending, or a no-op context manager.
 
     Args:
-        sock: The NTRIP TCP socket to send GGA sentences on.
+        sock: NTRIP TCP socket to send GGA sentences on.
         gga_provider: Callable returning the current position, or ``None``.
-        cancel: Event shared with ``_gga_loop`` to stop the thread.
-        gga_interval: Seconds between GGA sends (passed to ``_gga_loop``).
+        gga_interval: Seconds between GGA sends.
 
     Returns:
-        The started ``threading.Thread``, or ``None`` if no provider was given.
+        A ``RepeatingTask`` if a provider is given;
+        ``contextlib.nullcontext()`` otherwise.
     """
     if gga_provider is None:
-        return None
-    gga_sender = _make_gga_sender(sock, gga_provider)
-    thread = threading.Thread(
-        target=_gga_loop, args=(gga_sender, cancel, gga_interval), daemon=True
-    )
-    thread.start()
-    return thread
+        return contextlib.nullcontext()
+    return RepeatingTask(_make_gga_sender(sock, gga_provider), gga_interval)
 
 
 def _forward(
@@ -241,25 +215,20 @@ class NTRIPClient:
         self._cancel.set()
 
     def _run(self, sock: socket.socket, sock_file: io.BufferedReader) -> None:
-        """Open serial, run RTCM3 forwarding and GGA uplink, then clean up.
+        """Open serial, run RTCM3 forwarding alongside GGA uplink, then clean up.
 
-        Starts the GGA sender thread (if a provider is configured), blocks on
-        ``_forward`` until completion, then ensures the GGA thread is stopped
-        and joined before returning.
+        The GGA task (if configured) is started as a context manager so its
+        thread begins before forwarding and is joined when forwarding ends.
 
         Args:
             sock: Connected NTRIP TCP socket (used by the GGA sender thread).
             sock_file: Buffered reader wrapping ``sock`` (used by ``_forward``).
         """
         cfg = self._config
-        gga_thread = _maybe_start_gga_thread(
-            sock, self._gga_provider, self._cancel, cfg.gga_interval_seconds
-        )
-        with open(cfg.serial_device, "wb", buffering=0) as serial:
+        gga_task = _make_gga_task(sock, self._gga_provider, cfg.gga_interval_seconds)
+        with gga_task, open(cfg.serial_device, "wb", buffering=0) as serial:
             _forward(sock_file, serial, self._cancel)
         self._cancel.set()
-        if gga_thread is not None:
-            gga_thread.join()
 
     def stream(self) -> None:
         """Connect to the NTRIP caster and forward RTCM3 to serial. Blocks until done.
