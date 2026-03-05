@@ -6,11 +6,16 @@ on:
 
 jobs:
   review:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest # ubuntu-latest is generally preferred
     permissions:
       contents: read
       pull-requests: write
     steps:
-      - uses: google-gemini/gemini-code-assist@v1
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Gemini PR Review
+        uses: google-github-actions/run-gemini-cli@v0
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          prompt: "Please review the code changes in this pull request and provide constructive feedback."
