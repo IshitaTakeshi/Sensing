@@ -88,6 +88,21 @@ def _forward(
             continue
 
 
+def _build_request(cfg: NTRIPConfig) -> bytes:
+    """Build an NTRIP v1 HTTP GET request for the given config."""
+    lines = [
+        f"GET /{cfg.mountpoint} HTTP/1.0",
+        f"Host: {cfg.host}:{cfg.port}",
+        "Ntrip-Version: Ntrip/1.0",
+        "User-Agent: NTRIP sensing/1.0",
+    ]
+    auth = _basic_auth_header(cfg.username, cfg.password)
+    if auth is not None:
+        lines.append(auth)
+    lines.extend(["", ""])
+    return "\r\n".join(lines).encode("ascii")
+
+
 def _basic_auth_header(username: str, password: str) -> str | None:
     """Return a Basic Auth header line, or ``None`` if either credential is empty.
 
@@ -131,21 +146,6 @@ class NTRIPClient:
         """Signal ``stream()`` to stop forwarding data."""
         self._cancel.set()
 
-    def _build_request(self) -> bytes:
-        """Build an NTRIP v1 HTTP GET request."""
-        cfg = self._config
-        lines = [
-            f"GET /{cfg.mountpoint} HTTP/1.0",
-            f"Host: {cfg.host}:{cfg.port}",
-            "Ntrip-Version: Ntrip/1.0",
-            "User-Agent: NTRIP sensing/1.0",
-        ]
-        auth = _basic_auth_header(cfg.username, cfg.password)
-        if auth is not None:
-            lines.append(auth)
-        lines.extend(["", ""])
-        return "\r\n".join(lines).encode("ascii")
-
     def stream(self) -> None:
         """Connect to the NTRIP caster and forward RTCM3 to serial. Blocks until done.
 
@@ -154,7 +154,7 @@ class NTRIPClient:
         """
         cfg = self._config
         with socket.create_connection((cfg.host, cfg.port)) as sock:
-            sock.sendall(self._build_request())
+            sock.sendall(_build_request(cfg))
             with sock.makefile("rb") as sock_file:
                 _read_headers(sock_file)
                 sock.settimeout(_SOCKET_TIMEOUT)

@@ -9,7 +9,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from sensing.ntrip import NTRIPClient, NTRIPConfig
-from sensing.ntrip.client import _basic_auth_header, _parse_status_code, _write_all
+from sensing.ntrip.client import (
+    _basic_auth_header,
+    _build_request,
+    _parse_status_code,
+    _write_all,
+)
 
 _CFG = NTRIPConfig("rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5")
 _CFG_AUTH = NTRIPConfig(
@@ -100,15 +105,15 @@ class TestBasicAuthHeader:
 
 class TestBuildRequest:
     def test_no_auth_first_line_is_correct(self):
-        req = NTRIPClient(_CFG)._build_request().decode("ascii")
+        req = _build_request(_CFG).decode("ascii")
         assert req.split("\r\n")[0] == "GET /test-mount HTTP/1.0"
 
     def test_no_auth_has_no_authorization_header(self):
-        req = NTRIPClient(_CFG)._build_request().decode("ascii")
+        req = _build_request(_CFG).decode("ascii")
         assert "Authorization" not in req
 
     def test_with_credentials_includes_basic_auth(self):
-        req = NTRIPClient(_CFG_AUTH)._build_request().decode("ascii")
+        req = _build_request(_CFG_AUTH).decode("ascii")
         expected = base64.b64encode(b"user:pass").decode()
         assert f"Authorization: Basic {expected}" in req
 
