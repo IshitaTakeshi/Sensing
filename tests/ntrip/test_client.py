@@ -3,6 +3,7 @@
 import base64
 import io
 import socket
+import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -13,6 +14,7 @@ from sensing.ntrip import NTRIPClient, NTRIPConfig
 from sensing.ntrip.client import (
     _basic_auth_header,
     _build_request,
+    _gga_loop,
     _parse_status_code,
     _write_all,
 )
@@ -168,6 +170,39 @@ class TestWriteAll:
         serial.write.return_value = 0
         with pytest.raises(OSError, match="no progress"):
             _write_all(serial, b"\xD3\x00")
+
+
+# ---------------------------------------------------------------------------
+# TestGgaLoop
+# ---------------------------------------------------------------------------
+
+
+class TestGgaLoop:
+    def test_sends_immediately_before_first_wait(self):
+        cancel = threading.Event()
+        calls: list[int] = []
+        cancel.set()  # stop after the first send
+        _gga_loop(lambda: calls.append(1), cancel, gga_interval=60.0)
+        assert calls == [1]
+
+    def test_sends_again_after_interval(self):
+        cancel = threading.Event()
+        calls: list[int] = []
+
+        def sender() -> None:
+            calls.append(1)
+            if len(calls) >= 2:
+                cancel.set()
+
+        _gga_loop(sender, cancel, gga_interval=0.0)
+        assert len(calls) >= 2
+
+    def test_stops_when_cancel_is_set(self):
+        cancel = threading.Event()
+        cancel.set()
+        calls: list[int] = []
+        _gga_loop(lambda: calls.append(1), cancel, gga_interval=60.0)
+        assert calls == [1]  # exactly one send, then stops
 
 
 # ---------------------------------------------------------------------------

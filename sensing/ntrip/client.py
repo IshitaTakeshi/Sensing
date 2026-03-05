@@ -4,7 +4,6 @@ import base64
 import io
 import socket
 import threading
-import time
 from collections.abc import Callable
 from types import TracebackType
 
@@ -101,54 +100,69 @@ def _make_gga_sender(
     return _send
 
 
-def _maybe_send_gga(
-    gga_sender: Callable[[], None] | None,
-    last_gga: float,
+def _gga_loop(
+    gga_sender: Callable[[], None],
+    cancel: threading.Event,
     gga_interval: float,
-) -> float:
-    """Send a GGA sentence if the interval has elapsed; return the updated timestamp.
+) -> None:
+    """Send GGA to the caster at regular intervals until cancel is set.
+
+    Sends once immediately on entry, then waits ``gga_interval`` seconds between
+    subsequent sends. ``cancel.wait()`` is used instead of ``time.sleep()`` so
+    the thread wakes up instantly when ``cancel`` is set rather than waiting out
+    the full interval.
 
     Args:
-        gga_sender: Callable that sends one GGA sentence, or ``None`` to skip.
-        last_gga: ``time.monotonic()`` value from the previous GGA send.
-        gga_interval: Minimum seconds between consecutive GGA sends.
+        gga_sender: Callable that sends one GGA sentence to the caster socket.
+        cancel: Event that signals the loop to stop.
+        gga_interval: Seconds to wait between consecutive GGA sends.
+    """
+    gga_sender()
+    while not cancel.wait(gga_interval):
+        gga_sender()
+
+
+def _maybe_start_gga_thread(
+    sock: socket.socket,
+    gga_provider: Callable[[], GGAData | None] | None,
+    cancel: threading.Event,
+    gga_interval: float,
+) -> threading.Thread | None:
+    """Start a GGA sender daemon thread if a provider is given; else return ``None``.
+
+    Args:
+        sock: The NTRIP TCP socket to send GGA sentences on.
+        gga_provider: Callable returning the current position, or ``None``.
+        cancel: Event shared with ``_gga_loop`` to stop the thread.
+        gga_interval: Seconds between GGA sends (passed to ``_gga_loop``).
 
     Returns:
-        Updated ``last_gga`` timestamp (unchanged if no send occurred).
+        The started ``threading.Thread``, or ``None`` if no provider was given.
     """
-    if gga_sender is None:
-        return last_gga
-    now = time.monotonic()
-    if now - last_gga < gga_interval:
-        return last_gga
-    gga_sender()
-    return now
+    if gga_provider is None:
+        return None
+    gga_sender = _make_gga_sender(sock, gga_provider)
+    thread = threading.Thread(
+        target=_gga_loop, args=(gga_sender, cancel, gga_interval), daemon=True
+    )
+    thread.start()
+    return thread
 
 
 def _forward(
     source: io.BufferedReader,
     serial: io.RawIOBase,
     cancel: threading.Event,
-    gga_sender: Callable[[], None] | None,
-    gga_interval: float,
 ) -> None:
     """Forward RTCM3 bytes from source to serial until cancel is set or EOF.
-
-    If ``gga_sender`` is provided, it is called every ``gga_interval`` seconds
-    to send the rover's current position upstream to the NTRIP caster (required
-    by VRS services).
 
     Args:
         source: Buffered reader wrapping the NTRIP TCP socket.
         serial: Raw IO stream for the serial device.
         cancel: Event that signals the loop to stop.
-        gga_sender: Optional callable that sends a GGA sentence to the caster.
-        gga_interval: Minimum seconds between consecutive GGA sends.
     """
-    last_gga = 0.0
     while not cancel.is_set():
         try:
-            last_gga = _maybe_send_gga(gga_sender, last_gga, gga_interval)
             data = source.read1(_CHUNK)
             if not data:
                 break
@@ -226,6 +240,27 @@ class NTRIPClient:
         """Signal ``stream()`` to stop forwarding data."""
         self._cancel.set()
 
+    def _run(self, sock: socket.socket, sock_file: io.BufferedReader) -> None:
+        """Open serial, run RTCM3 forwarding and GGA uplink, then clean up.
+
+        Starts the GGA sender thread (if a provider is configured), blocks on
+        ``_forward`` until completion, then ensures the GGA thread is stopped
+        and joined before returning.
+
+        Args:
+            sock: Connected NTRIP TCP socket (used by the GGA sender thread).
+            sock_file: Buffered reader wrapping ``sock`` (used by ``_forward``).
+        """
+        cfg = self._config
+        gga_thread = _maybe_start_gga_thread(
+            sock, self._gga_provider, self._cancel, cfg.gga_interval_seconds
+        )
+        with open(cfg.serial_device, "wb", buffering=0) as serial:
+            _forward(sock_file, serial, self._cancel)
+        self._cancel.set()
+        if gga_thread is not None:
+            gga_thread.join()
+
     def stream(self) -> None:
         """Connect to the NTRIP caster and forward RTCM3 to serial. Blocks until done.
 
@@ -241,9 +276,4 @@ class NTRIPClient:
                 _drain_headers(sock_file, self._cancel)
                 if self._cancel.is_set():
                     return
-                gga_sender = None
-                if self._gga_provider is not None:
-                    gga_sender = _make_gga_sender(sock, self._gga_provider)
-                interval = cfg.gga_interval_seconds
-                with open(cfg.serial_device, "wb", buffering=0) as serial:
-                    _forward(sock_file, serial, self._cancel, gga_sender, interval)
+                self._run(sock, sock_file)
