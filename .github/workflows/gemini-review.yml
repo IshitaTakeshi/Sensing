@@ -6,7 +6,7 @@ on:
 
 jobs:
   review:
-    runs-on: ubuntu-latest # ubuntu-latest is generally preferred
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
@@ -18,5 +18,5 @@ jobs:
         uses: google-github-actions/run-gemini-cli@v0
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          model: gemini-3.1-flash
+          gemini_model: gemini-2.5-flash
           prompt: "Please review the code changes in this pull request and provide constructive feedback."
