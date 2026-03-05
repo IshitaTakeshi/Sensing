@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sensing.nmea.types import GGAData
 from sensing.ntrip import NTRIPClient, NTRIPConfig
 from sensing.ntrip.client import (
     _basic_auth_header,
@@ -20,6 +21,24 @@ _CFG = NTRIPConfig("rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5")
 _CFG_AUTH = NTRIPConfig(
     "rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5",
     username="user", password="pass",  # noqa: S106
+)
+# gga_interval_seconds=0 ensures GGA is sent on the first loop iteration.
+_CFG_GGA = NTRIPConfig(
+    "rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5",
+    gga_interval_seconds=0.0,
+)
+
+# Tokyo Tower -- public landmark used to avoid privacy-sensitive coordinates.
+_GGA_DATA = GGAData(
+    utc_time="123519.00",
+    latitude_degrees=35.6586,
+    longitude_degrees=139.7454,
+    fix_quality=1,
+    num_satellites=8,
+    horizontal_dilution_of_precision=0.9,
+    altitude_meters=333.0,
+    geoid_height_meters=None,
+    valid=True,
 )
 
 
@@ -182,3 +201,62 @@ class TestStream:
             client.cancel()
             client.stream()
         mock_ntrip.serial.write.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestStreamWithGga
+# ---------------------------------------------------------------------------
+
+
+class TestStreamWithGga:
+    def test_gga_is_sent_to_caster_socket(self, mock_ntrip):
+        mock_ntrip.sock.makefile.return_value = _make_stream(
+            [b"ICY 200 OK\r\n", b"\r\n"], [b""]
+        )
+        with NTRIPClient(_CFG_GGA, gga_provider=lambda: _GGA_DATA) as client:
+            client.stream()
+        mock_ntrip.sock.sendall.assert_called()
+        sent = mock_ntrip.sock.sendall.call_args[0][0]
+        assert sent.startswith(b"$GPGGA,")
+        assert sent.endswith(b"\r\n")
+
+    def test_gga_contains_expected_latitude(self, mock_ntrip):
+        mock_ntrip.sock.makefile.return_value = _make_stream(
+            [b"ICY 200 OK\r\n", b"\r\n"], [b""]
+        )
+        with NTRIPClient(_CFG_GGA, gga_provider=lambda: _GGA_DATA) as client:
+            client.stream()
+        sent = mock_ntrip.sock.sendall.call_args[0][0].decode()
+        assert "3539.5160" in sent
+
+    def test_no_gga_sent_when_provider_returns_none(self, mock_ntrip):
+        mock_ntrip.sock.makefile.return_value = _make_stream(
+            [b"ICY 200 OK\r\n", b"\r\n"], [b""]
+        )
+        with NTRIPClient(_CFG_GGA, gga_provider=lambda: None) as client:
+            client.stream()
+        gga_calls = [c for c in mock_ntrip.sock.sendall.call_args_list if b"$GPGGA" in c.args[0]]
+        assert gga_calls == []
+
+    def test_no_gga_sent_when_provider_is_absent(self, mock_ntrip):
+        mock_ntrip.sock.makefile.return_value = _make_stream(
+            [b"ICY 200 OK\r\n", b"\r\n"], [b""]
+        )
+        with NTRIPClient(_CFG) as client:
+            client.stream()
+        gga_calls = [c for c in mock_ntrip.sock.sendall.call_args_list if b"$GPGGA" in c.args[0]]
+        assert gga_calls == []
+
+    def test_no_gga_sent_when_coordinates_are_none(self, mock_ntrip):
+        mock_ntrip.sock.makefile.return_value = _make_stream(
+            [b"ICY 200 OK\r\n", b"\r\n"], [b""]
+        )
+        no_fix = GGAData(
+            utc_time=None, latitude_degrees=None, longitude_degrees=None,
+            fix_quality=0, num_satellites=None, horizontal_dilution_of_precision=None,
+            altitude_meters=None, geoid_height_meters=None, valid=False,
+        )
+        with NTRIPClient(_CFG_GGA, gga_provider=lambda: no_fix) as client:
+            client.stream()
+        gga_calls = [c for c in mock_ntrip.sock.sendall.call_args_list if b"$GPGGA" in c.args[0]]
+        assert gga_calls == []

@@ -24,3 +24,4 @@ class NTRIPConfig:
     serial_device: str
     username: str = ""
     password: str = ""
+    gga_interval_seconds: float = 10.0

@@ -4,8 +4,12 @@ import base64
 import io
 import socket
 import threading
+import time
+from collections.abc import Callable
 from types import TracebackType
 
+from sensing.nmea.formatter import format_gga
+from sensing.nmea.types import GGAData
 from sensing.ntrip.config import NTRIPConfig
 
 __all__ = ["NTRIPClient"]
@@ -81,20 +85,70 @@ def _write_all(serial: io.RawIOBase, data: bytes) -> None:
         view = view[written:]
 
 
+def _make_gga_sender(
+    sock: socket.socket,
+    gga_provider: Callable[[], GGAData | None],
+) -> Callable[[], None]:
+    """Return a callable that fetches the rover's GGA and sends it to the caster."""
+    def _send() -> None:
+        """Fetch the current position and send it upstream as a NMEA GGA sentence."""
+        gga = gga_provider()
+        if gga is None:
+            return
+        if gga.latitude_degrees is None or gga.longitude_degrees is None:
+            return
+        sock.sendall(format_gga(gga).encode("ascii"))
+    return _send
+
+
+def _maybe_send_gga(
+    gga_sender: Callable[[], None] | None,
+    last_gga: float,
+    gga_interval: float,
+) -> float:
+    """Send a GGA sentence if the interval has elapsed; return the updated timestamp.
+
+    Args:
+        gga_sender: Callable that sends one GGA sentence, or ``None`` to skip.
+        last_gga: ``time.monotonic()`` value from the previous GGA send.
+        gga_interval: Minimum seconds between consecutive GGA sends.
+
+    Returns:
+        Updated ``last_gga`` timestamp (unchanged if no send occurred).
+    """
+    if gga_sender is None:
+        return last_gga
+    now = time.monotonic()
+    if now - last_gga < gga_interval:
+        return last_gga
+    gga_sender()
+    return now
+
+
 def _forward(
     source: io.BufferedReader,
     serial: io.RawIOBase,
     cancel: threading.Event,
+    gga_sender: Callable[[], None] | None,
+    gga_interval: float,
 ) -> None:
     """Forward RTCM3 bytes from source to serial until cancel is set or EOF.
+
+    If ``gga_sender`` is provided, it is called every ``gga_interval`` seconds
+    to send the rover's current position upstream to the NTRIP caster (required
+    by VRS services).
 
     Args:
         source: Buffered reader wrapping the NTRIP TCP socket.
         serial: Raw IO stream for the serial device.
         cancel: Event that signals the loop to stop.
+        gga_sender: Optional callable that sends a GGA sentence to the caster.
+        gga_interval: Minimum seconds between consecutive GGA sends.
     """
+    last_gga = 0.0
     while not cancel.is_set():
         try:
+            last_gga = _maybe_send_gga(gga_sender, last_gga, gga_interval)
             data = source.read1(_CHUNK)
             if not data:
                 break
@@ -136,12 +190,23 @@ class NTRIPClient:
 
     Args:
         config: NTRIP caster and serial device parameters.
+        gga_provider: Optional callable returning the rover's current position.
+            When provided, the client sends a GGA sentence to the caster after
+            the handshake and every ``config.gga_interval_seconds`` thereafter.
+            Required by VRS-type casters to generate geographically tailored
+            corrections. When ``None`` or when the provider returns ``None``,
+            no GGA is sent (suitable for single-base casters).
     """
 
-    def __init__(self, config: NTRIPConfig) -> None:
-        """Store config; the connection is made in ``stream()``."""
+    def __init__(
+        self,
+        config: NTRIPConfig,
+        gga_provider: Callable[[], GGAData | None] | None = None,
+    ) -> None:
+        """Store config and optional GGA provider; connection is made in ``stream``."""
         self._config = config
         self._cancel = threading.Event()
+        self._gga_provider = gga_provider
 
     def __enter__(self) -> "NTRIPClient":
         """Clear the cancel event so the client can be reused after ``cancel()``."""
@@ -176,5 +241,9 @@ class NTRIPClient:
                 _drain_headers(sock_file, self._cancel)
                 if self._cancel.is_set():
                     return
+                gga_sender = None
+                if self._gga_provider is not None:
+                    gga_sender = _make_gga_sender(sock, self._gga_provider)
+                interval = cfg.gga_interval_seconds
                 with open(cfg.serial_device, "wb", buffering=0) as serial:
-                    _forward(sock_file, serial, self._cancel)
+                    _forward(sock_file, serial, self._cancel, gga_sender, interval)
