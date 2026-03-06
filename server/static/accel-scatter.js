@@ -122,10 +122,10 @@ function _drawScale(context) {
     for (const tick of ticks) {
         const offset = tick * _pixelsPerMs2;
         context.beginPath();
-        context.moveTo(_centerX + offset, _centerY - 4);
-        context.lineTo(_centerX + offset, _centerY + 4);
         context.moveTo(_centerX - 4, _centerY - offset);
         context.lineTo(_centerX + 4, _centerY - offset);
+        context.moveTo(_centerX - offset, _centerY - 4);
+        context.lineTo(_centerX - offset, _centerY + 4);
         context.stroke();
     }
 }
@@ -137,12 +137,16 @@ function _drawScale(context) {
 function _drawLabels(context) {
     context.fillStyle = '#666';
     context.font = '11px monospace';
-    context.textAlign = 'center';
-    context.textBaseline = 'alphabetic';
-    context.fillText('X (m/s²)', _centerX, _centerY * 2 - 6);
+
+    // X label: top of vertical axis (forward = up)
     context.textAlign = 'left';
     context.textBaseline = 'top';
-    context.fillText('Y (m/s²)', _centerX + 4, 6);
+    context.fillText('X (m/s²)', _centerX + 4, 6);
+
+    // Y label: left of horizontal axis (left = positive)
+    context.textAlign = 'left';
+    context.textBaseline = 'bottom';
+    context.fillText('Y (m/s²)', 6, _centerY - 4);
 }
 
 /**
@@ -164,8 +168,11 @@ function _drawTrail(context) {
 function _drawPoint(context, pointIndex) {
     const alpha = (pointIndex + 1) / _trailPoints.length;
     const point = _trailPoints[pointIndex];
-    const pixelX = _centerX + point.x * _pixelsPerMs2;
-    const pixelY = _centerY - point.y * _pixelsPerMs2;
+
+    // ISO 8855: positive Y (left) maps to screen left, positive X (forward) maps to screen up
+    const pixelX = _centerX - point.y * _pixelsPerMs2;
+    const pixelY = _centerY - point.x * _pixelsPerMs2;
+
     const isNewest = pointIndex === _trailPoints.length - 1;
     context.globalAlpha = alpha;
     context.fillStyle = '#4ec97c';
