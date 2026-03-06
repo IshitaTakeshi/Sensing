@@ -1,11 +1,16 @@
 """NTRIP v1 client: streams RTCM3 corrections to a serial device."""
 
 import base64
+import contextlib
 import io
 import socket
 import threading
+from collections.abc import Callable
 from types import TracebackType
 
+from sensing.concurrency import RepeatingTask
+from sensing.nmea.formatter import format_gga
+from sensing.nmea.types import GGAData
 from sensing.ntrip.config import NTRIPConfig
 
 __all__ = ["NTRIPClient"]
@@ -81,6 +86,43 @@ def _write_all(serial: io.RawIOBase, data: bytes) -> None:
         view = view[written:]
 
 
+def _make_gga_sender(
+    sock: socket.socket,
+    gga_provider: Callable[[], GGAData | None],
+) -> Callable[[], None]:
+    """Return a callable that fetches the rover's GGA and sends it to the caster."""
+    def _send() -> None:
+        """Fetch the current position and send it upstream as a NMEA GGA sentence."""
+        gga = gga_provider()
+        if gga is None:
+            return
+        if gga.latitude_degrees is None or gga.longitude_degrees is None:
+            return
+        sock.sendall(format_gga(gga).encode("ascii"))
+    return _send
+
+
+def _make_gga_task(
+    sock: socket.socket,
+    gga_provider: Callable[[], GGAData | None] | None,
+    gga_interval: float,
+) -> contextlib.AbstractContextManager[object]:
+    """Return a RepeatingTask for GGA sending, or a no-op context manager.
+
+    Args:
+        sock: NTRIP TCP socket to send GGA sentences on.
+        gga_provider: Callable returning the current position, or ``None``.
+        gga_interval: Seconds between GGA sends.
+
+    Returns:
+        A ``RepeatingTask`` if a provider is given;
+        ``contextlib.nullcontext()`` otherwise.
+    """
+    if gga_provider is None:
+        return contextlib.nullcontext()
+    return RepeatingTask(_make_gga_sender(sock, gga_provider), gga_interval)
+
+
 def _forward(
     source: io.BufferedReader,
     serial: io.RawIOBase,
@@ -136,12 +178,23 @@ class NTRIPClient:
 
     Args:
         config: NTRIP caster and serial device parameters.
+        gga_provider: Optional callable returning the rover's current position.
+            When provided, the client sends a GGA sentence to the caster after
+            the handshake and every ``config.gga_interval_seconds`` thereafter.
+            Required by VRS-type casters to generate geographically tailored
+            corrections. When ``None`` or when the provider returns ``None``,
+            no GGA is sent (suitable for single-base casters).
     """
 
-    def __init__(self, config: NTRIPConfig) -> None:
-        """Store config; the connection is made in ``stream()``."""
+    def __init__(
+        self,
+        config: NTRIPConfig,
+        gga_provider: Callable[[], GGAData | None] | None = None,
+    ) -> None:
+        """Store config and GGA provider; connection is made in ``stream()``."""
         self._config = config
         self._cancel = threading.Event()
+        self._gga_provider = gga_provider
 
     def __enter__(self) -> "NTRIPClient":
         """Clear the cancel event so the client can be reused after ``cancel()``."""
@@ -161,6 +214,22 @@ class NTRIPClient:
         """Signal ``stream()`` to stop forwarding data."""
         self._cancel.set()
 
+    def _run(self, sock: socket.socket, sock_file: io.BufferedReader) -> None:
+        """Open serial, run RTCM3 forwarding alongside GGA uplink, then clean up.
+
+        The GGA task (if configured) is started as a context manager so its
+        thread begins before forwarding and is joined when forwarding ends.
+
+        Args:
+            sock: Connected NTRIP TCP socket (used by the GGA sender thread).
+            sock_file: Buffered reader wrapping ``sock`` (used by ``_forward``).
+        """
+        cfg = self._config
+        gga_task = _make_gga_task(sock, self._gga_provider, cfg.gga_interval_seconds)
+        with gga_task, open(cfg.serial_device, "wb", buffering=0) as serial:
+            _forward(sock_file, serial, self._cancel)
+        self._cancel.set()
+
     def stream(self) -> None:
         """Connect to the NTRIP caster and forward RTCM3 to serial. Blocks until done.
 
@@ -176,5 +245,4 @@ class NTRIPClient:
                 _drain_headers(sock_file, self._cancel)
                 if self._cancel.is_set():
                     return
-                with open(cfg.serial_device, "wb", buffering=0) as serial:
-                    _forward(sock_file, serial, self._cancel)
+                self._run(sock, sock_file)

@@ -16,6 +16,8 @@ class NTRIPConfig:
         serial_device: Path to the serial device for RTCM3 output.
         username: Username for Basic Auth (default: empty -- no auth).
         password: Password for Basic Auth (default: empty -- no auth).
+        gga_interval_seconds: Seconds between GGA position feedback messages
+            sent to the caster (default: 10.0).
     """
 
     host: str
@@ -24,3 +26,4 @@ class NTRIPConfig:
     serial_device: str
     username: str = ""
     password: str = ""
+    gga_interval_seconds: float = 10.0
