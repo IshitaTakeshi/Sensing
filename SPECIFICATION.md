@@ -75,14 +75,32 @@ The system synchronizes the OS clock to the GNSS PPS signal with nanosecond-leve
 
 ### 4.1 GPSD Configuration (`/etc/default/gpsd`)
 
-`gpsd` handles only the NMEA data from the UART device. The PPS signal is handled directly by Chrony.
+`gpsd` handles the NMEA data from the UART device and delivers RTCM3 correction
+data to the ZED-F9P via its built-in NTRIP client. The PPS signal is handled
+directly by Chrony.
+
+Because `gpsd` holds the UART file descriptor open, no other process may open
+`/dev/ttyAMA5` directly. Feeding corrections through `gpsd`'s own NTRIP client
+is therefore the only way to write RTCM3 bytes to the receiver without requiring
+a second UART.
 
 ```shell
 START_DAEMON="true"
 USBAUTO="true"
-DEVICES="/dev/ttyAMA5"
+DEVICES="/dev/ttyAMA5 ntrip://username:password@ntrip.example.com:2101/MOUNTPOINT"
 GPSD_OPTIONS="-n"
 
+```
+
+Replace `username`, `password`, `ntrip.example.com`, `2101`, and `MOUNTPOINT`
+with your caster's credentials. `gpsd` will connect to the caster, send GGA
+position sentences back to the caster for VRS support, and forward the received
+RTCM3 bytes to the receiver through the UART it already owns.
+
+After editing the file, restart the daemon:
+
+```shell
+sudo systemctl restart gpsd
 ```
 
 ### 4.2 Chrony Configuration (`/etc/chrony/chrony.conf`)
