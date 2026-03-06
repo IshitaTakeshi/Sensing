@@ -68,6 +68,7 @@ def mock_hardware_readers() -> (
     with (
         patch("server.main.GNSSReader", return_value=gnss_controller),
         patch("server.main.IMUReader", return_value=imu_controller),
+        patch("server.main.load_ntrip_config", return_value=None),
     ):
         yield gnss_controller, imu_controller
 

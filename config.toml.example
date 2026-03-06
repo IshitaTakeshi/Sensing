@@ -1,0 +1,8 @@
+[ntrip]
+host = "ntrip.example.com"
+port = 2101
+mountpoint = "NEAR00"
+serial_device = "/dev/ttyAMA5"
+username = ""
+password = ""
+gga_interval_seconds = 10.0

@@ -4,6 +4,7 @@ import asyncio
 
 from sensing.gnss import GNSSReader
 from sensing.imu import IMUData, IMUReader
+from sensing.nmea.types import GGAData
 from server.broadcaster import broadcast_message
 from server.formatters import format_gnss_message, format_imu_message
 
@@ -12,7 +13,11 @@ __all__ = ["run_gnss_loop", "run_imu_loop"]
 _IMU_DECIMATION = 5
 
 
-def run_gnss_loop(loop: asyncio.AbstractEventLoop, gnss: GNSSReader) -> None:
+def run_gnss_loop(
+    loop: asyncio.AbstractEventLoop,
+    gnss: GNSSReader,
+    gga_slot: list[GGAData | None] | None = None,
+) -> None:
     """Read GNSS data continuously and broadcast it to the event loop.
 
     The caller owns *gnss* and must use it as an open context manager. The
@@ -22,9 +27,13 @@ def run_gnss_loop(loop: asyncio.AbstractEventLoop, gnss: GNSSReader) -> None:
     Args:
         loop: Running asyncio event loop to broadcast messages on.
         gnss: An open ``GNSSReader`` instance managed by the caller.
+        gga_slot: Optional single-element list updated each iteration with
+            the latest ``GGAData`` for NTRIP position feedback.
     """
     try:
         for data in gnss:
+            if gga_slot is not None:
+                gga_slot[0] = data.gga
             message = format_gnss_message(data)
             broadcast_message(message, loop)
     except EOFError:
