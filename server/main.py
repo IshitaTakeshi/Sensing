@@ -11,7 +11,7 @@ one ``type="imu"`` message every fifth IMU sample (~20 Hz).
 """
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from pathlib import Path
@@ -25,7 +25,7 @@ from sensing.nmea.types import GGAData
 from sensing.ntrip import NTRIPClient, NTRIPConfig
 from server.broadcaster import add_subscriber, remove_subscriber
 from server.config import load_ntrip_config
-from server.sensors import run_gnss_loop, run_imu_loop
+from server.sensors import LatestGGA, run_gnss_loop, run_imu_loop
 
 __all__ = ["app"]
 
@@ -36,25 +36,25 @@ _TIMEOUT_SECONDS = 5.0
 
 def _ntrip_context(
     cfg: NTRIPConfig | None,
-    gga_slot: list[GGAData | None],
+    gga_provider: Callable[[], GGAData | None],
 ) -> AbstractContextManager[NTRIPClient | None]:
     if cfg is None:
         return nullcontext()
-    return NTRIPClient(cfg, lambda: gga_slot[0])
+    return NTRIPClient(cfg, gga_provider)
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    gga_slot: list[GGAData | None] = [None]
+    latest_gga = LatestGGA()
     ntrip_cfg = load_ntrip_config()
     loop = asyncio.get_running_loop()
     with (
         ThreadPoolExecutor(max_workers=3) as executor,
         GNSSReader() as gnss,
         IMUReader() as imu,
-        _ntrip_context(ntrip_cfg, gga_slot) as ntrip,
+        _ntrip_context(ntrip_cfg, latest_gga) as ntrip,
     ):
-        loop.run_in_executor(executor, run_gnss_loop, loop, gnss, gga_slot)
+        loop.run_in_executor(executor, run_gnss_loop, loop, gnss, latest_gga.update)
         loop.run_in_executor(executor, run_imu_loop, loop, imu)
         if ntrip is not None:
             loop.run_in_executor(executor, ntrip.stream)

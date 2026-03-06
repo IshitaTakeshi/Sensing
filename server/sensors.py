@@ -1,6 +1,7 @@
 """Background sensor reading loops."""
 
 import asyncio
+from collections.abc import Callable
 
 from sensing.gnss import GNSSReader
 from sensing.imu import IMUData, IMUReader
@@ -8,15 +9,36 @@ from sensing.nmea.types import GGAData
 from server.broadcaster import broadcast_message
 from server.formatters import format_gnss_message, format_imu_message
 
-__all__ = ["run_gnss_loop", "run_imu_loop"]
+__all__ = ["LatestGGA", "run_gnss_loop", "run_imu_loop"]
 
 _IMU_DECIMATION = 5
+
+
+class LatestGGA:
+    """Cache of the most recent GGAData from the GNSS loop.
+
+    Used as the ``gga_provider`` callable passed to ``NTRIPClient``.
+    The GNSS loop calls ``update`` each iteration; the NTRIP thread
+    calls the instance to read the cached value.
+    """
+
+    def __init__(self) -> None:
+        """Initialize with no position."""
+        self._gga: GGAData | None = None
+
+    def update(self, gga: GGAData) -> None:
+        """Store the most recent GGA reading."""
+        self._gga = gga
+
+    def __call__(self) -> GGAData | None:
+        """Return the most recent GGA reading, or ``None`` if not yet received."""
+        return self._gga
 
 
 def run_gnss_loop(
     loop: asyncio.AbstractEventLoop,
     gnss: GNSSReader,
-    gga_slot: list[GGAData | None] | None = None,
+    on_gga: Callable[[GGAData], None] | None = None,
 ) -> None:
     """Read GNSS data continuously and broadcast it to the event loop.
 
@@ -27,13 +49,13 @@ def run_gnss_loop(
     Args:
         loop: Running asyncio event loop to broadcast messages on.
         gnss: An open ``GNSSReader`` instance managed by the caller.
-        gga_slot: Optional single-element list updated each iteration with
-            the latest ``GGAData`` for NTRIP position feedback.
+        on_gga: Optional callback invoked with each new ``GGAData``
+            (e.g. ``LatestGGA.update``) for NTRIP position feedback.
     """
     try:
         for data in gnss:
-            if gga_slot is not None:
-                gga_slot[0] = data.gga
+            if on_gga is not None:
+                on_gga(data.gga)
             message = format_gnss_message(data)
             broadcast_message(message, loop)
     except EOFError:
