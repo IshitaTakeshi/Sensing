@@ -17,7 +17,10 @@ def _degrees_to_nmea(decimal: float, *, is_latitude: bool) -> tuple[str, str]:
     """Convert decimal degrees to NMEA DDMM.MMMM / DDDMM.MMMM and hemisphere char."""
     abs_deg = abs(decimal)
     degrees = int(abs_deg)
-    minutes = (abs_deg - degrees) * 60.0
+    minutes = round((abs_deg - degrees) * 60.0, 4)
+    if minutes >= 60.0:
+        minutes -= 60.0
+        degrees += 1
     if is_latitude:
         return f"{degrees:02d}{minutes:07.4f}", "N" if decimal >= 0 else "S"
     return f"{degrees:03d}{minutes:07.4f}", "E" if decimal >= 0 else "W"

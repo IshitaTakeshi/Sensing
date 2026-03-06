@@ -21,7 +21,13 @@ class RepeatingTask(contextlib.AbstractContextManager["RepeatingTask"]):
     """
 
     def __init__(self, task: Callable[[], None], interval: float) -> None:
-        """Store task and interval; thread is not started until ``__enter__``."""
+        """Store task and interval; thread is not started until ``__enter__``.
+
+        Raises:
+            ValueError: If ``interval`` is not positive.
+        """
+        if interval <= 0:
+            raise ValueError(f"interval must be positive, got {interval!r}")
         self._task = task
         self._interval = interval
         self._cancel = threading.Event()

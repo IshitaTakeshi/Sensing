@@ -191,7 +191,7 @@ class NTRIPClient:
         config: NTRIPConfig,
         gga_provider: Callable[[], GGAData | None] | None = None,
     ) -> None:
-        """Store config and optional GGA provider; connection is made in ``stream``."""
+        """Store config and GGA provider; connection is made in ``stream()``."""
         self._config = config
         self._cancel = threading.Event()
         self._gga_provider = gga_provider

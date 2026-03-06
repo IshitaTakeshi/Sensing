@@ -20,9 +20,9 @@ class TestRepeatingTask:
             if len(calls) >= 2:
                 done.set()
 
-        with RepeatingTask(task, interval=0.0):
+        with RepeatingTask(task, interval=0.01):
             assert done.wait(timeout=1.0)
-        assert len(calls) >= 2
+        assert 2 <= len(calls) < 100
 
     def test_exit_stops_task_promptly(self):
         calls: list[int] = []

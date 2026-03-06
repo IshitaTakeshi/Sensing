@@ -22,10 +22,9 @@ _CFG_AUTH = NTRIPConfig(
     "rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5",
     username="user", password="pass",  # noqa: S106
 )
-# gga_interval_seconds=0 ensures GGA is sent on the first loop iteration.
 _CFG_GGA = NTRIPConfig(
     "rtk.example.com", 2101, "test-mount", "/dev/ttyAMA5",
-    gga_interval_seconds=0.0,
+    gga_interval_seconds=10.0,
 )
 
 # Tokyo Tower -- public landmark used to avoid privacy-sensitive coordinates.
