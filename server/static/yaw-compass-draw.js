@@ -34,25 +34,6 @@ export function drawCompassRing(context, geometry) {
 }
 
 /**
- * Draws the heading needle at the given integrated heading angle.
- * @param {CanvasRenderingContext2D} context
- * @param {CompassGeometry} geometry
- * @param {number} heading - Integrated heading angle in radians.
- * @returns {void}
- */
-export function drawHeadingNeedle(context, geometry, heading) {
-    const needleAngle = heading - Math.PI / 2;
-    const tipX = geometry.centerX + geometry.radius * 0.8 * Math.cos(needleAngle);
-    const tipY = geometry.centerY + geometry.radius * 0.8 * Math.sin(needleAngle);
-    context.beginPath();
-    context.moveTo(geometry.centerX, geometry.centerY);
-    context.lineTo(tipX, tipY);
-    context.strokeStyle = '#d0d0d0';
-    context.lineWidth = 2;
-    context.stroke();
-}
-
-/**
  * Draws a colored arc indicating the current yaw rate magnitude and direction.
  * @param {CanvasRenderingContext2D} context
  * @param {CompassGeometry} geometry

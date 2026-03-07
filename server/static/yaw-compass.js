@@ -1,8 +1,6 @@
-/* Yaw rate compass — integrated heading needle and instantaneous rate arc. */
+/* Yaw rate compass — instantaneous rate arc. */
 
-import { drawCompassRing, drawRateArc, drawHeadingNeedle, updateReadout } from './yaw-compass-draw.js';
-
-const MAX_DELTA_TIME_SECONDS = 0.5;
+import { drawCompassRing, drawRateArc, updateReadout } from './yaw-compass-draw.js';
 
 /** @type {HTMLCanvasElement | null} */
 let _canvas = null;
@@ -10,56 +8,25 @@ let _canvas = null;
 /** @type {HTMLElement | null} */
 let _readoutElement = null;
 
-let _integratedHeading = 0;
-
-/** @type {number | null} */
-let _lastTimestampNanoseconds = null;
-
 /**
- * Initialises the yaw compass panel, wiring up the canvas and reset button.
+ * Initialises the yaw compass panel, wiring up the canvas.
  * @returns {void}
  */
 export function initYawCompass() {
     _canvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('compass-canvas'));
     if (_canvas == null) return;
     _readoutElement = document.getElementById('compass-readout');
-    const resetButton = document.getElementById('reset-heading-button');
-    if (resetButton != null) {
-        resetButton.addEventListener('click', _resetHeading);
-    }
     new ResizeObserver(_onResize).observe(_canvas);
     _onResize();
 }
 
 /**
- * Integrates gyroZ over the elapsed time and redraws the compass.
+ * Redraws the compass with the current gyroZ value.
  * @param {number} gyroZ - Angular rate around the Z axis in rad/s.
- * @param {number} timestampNanoseconds - Sample timestamp in nanoseconds.
  * @returns {void}
  */
-export function updateYawCompass(gyroZ, timestampNanoseconds) {
-    if (_lastTimestampNanoseconds == null) {
-        _lastTimestampNanoseconds = timestampNanoseconds;
-        _redraw(gyroZ);
-        return;
-    }
-    const deltaTime = (timestampNanoseconds - _lastTimestampNanoseconds) / 1e9;
-    _lastTimestampNanoseconds = timestampNanoseconds;
-    if (deltaTime <= 0 || deltaTime > MAX_DELTA_TIME_SECONDS) {
-        _redraw(gyroZ);
-        return;
-    }
-    _integratedHeading = _integrate(_integratedHeading, deltaTime, gyroZ);
+export function updateYawCompass(gyroZ) {
     _redraw(gyroZ);
-}
-
-/**
- * @returns {void}
- */
-function _resetHeading() {
-    _integratedHeading = 0;
-    _lastTimestampNanoseconds = /** @type {number | null} */ (null);
-    _redraw(0);
 }
 
 /**
@@ -75,16 +42,6 @@ function _onResize() {
         context.scale(ratio, ratio);
     }
     _redraw(0);
-}
-
-/**
- * @param {number} currentHeading - Current integrated heading in radians.
- * @param {number} deltaTime - Elapsed time in seconds.
- * @param {number} gyroZ - Angular rate around the Z axis in rad/s.
- * @returns {number} New integrated heading in radians.
- */
-function _integrate(currentHeading, deltaTime, gyroZ) {
-    return (currentHeading - gyroZ * deltaTime) % (2 * Math.PI);
 }
 
 /**
@@ -111,6 +68,5 @@ function _redraw(gyroZ) {
     context.clearRect(0, 0, _canvas.clientWidth, _canvas.clientHeight);
     drawCompassRing(context, geometry);
     drawRateArc(context, geometry, gyroZ);
-    drawHeadingNeedle(context, geometry, _integratedHeading);
     updateReadout(_readoutElement, gyroZ);
 }
