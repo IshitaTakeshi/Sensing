@@ -1,7 +1,7 @@
 /* Acceleration X-Y scatter panel — 100-point fading trail on a Canvas element. */
 
 const MAX_TRAIL_POINTS = 100;
-const AXIS_RANGE_MS2 = 2;
+const AXIS_RANGE_MS2 = 10;
 
 /** @type {HTMLCanvasElement | null} */
 let _canvas = null;
@@ -116,7 +116,8 @@ function _drawAxes(context) {
  * @returns {void}
  */
 function _drawScale(context) {
-    const ticks = [-2, -1, 1, 2];
+    const half = AXIS_RANGE_MS2 / 2;
+    const ticks = [-AXIS_RANGE_MS2, -half, half, AXIS_RANGE_MS2];
     context.strokeStyle = '#333';
     context.lineWidth = 1;
     for (const tick of ticks) {
