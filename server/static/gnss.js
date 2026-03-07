@@ -76,10 +76,9 @@ function _buildPopupNode(label, numSatellites, hdop) {
 }
 
 function _positionMarker(latlng, popupNode) {
-    if (!centeredOnFix) {
-        map.setView(latlng, 17);
-        centeredOnFix = true;
-    }
+    const zoom = centeredOnFix ? map.getZoom() : 17;
+    centeredOnFix = true;
+    map.setView(latlng, zoom);
     if (marker === null) {
         marker = L.marker(latlng).addTo(map).bindPopup(popupNode);
         return;
