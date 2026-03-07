@@ -1,23 +1,10 @@
 /* Yaw compass draw helpers — pure rendering functions for the compass canvas. */
 
-const STATIONARY_RATE = 0.05;
-const SLOW_RATE = 0.20;
-const MODERATE_RATE = 0.50;
+const SECTOR_COLOR = '#4ec97c';
 
 /**
  * @typedef {{centerX: number, centerY: number, radius: number}} CompassGeometry
  */
-
-/**
- * @param {number} absGyroZ
- * @returns {string}
- */
-function _computeArcColor(absGyroZ) {
-    if (absGyroZ <= STATIONARY_RATE) return '#6ab0f5';
-    if (absGyroZ <= SLOW_RATE) return '#4ec97c';
-    if (absGyroZ <= MODERATE_RATE) return '#d4a835';
-    return '#e05555';
-}
 
 /**
  * Draws the outer ring of the compass.
@@ -34,21 +21,22 @@ export function drawCompassRing(context, geometry) {
 }
 
 /**
- * Draws a colored arc indicating the current yaw rate magnitude and direction.
+ * Draws a filled sector indicating the current yaw rate magnitude and direction.
  * @param {CanvasRenderingContext2D} context
  * @param {CompassGeometry} geometry
  * @param {number} gyroZ - Angular rate around the Z axis in rad/s.
  * @returns {void}
  */
-export function drawRateArc(context, geometry, gyroZ) {
+export function drawRateSector(context, geometry, gyroZ) {
     const arcLength = Math.min(Math.abs(gyroZ), Math.PI);
     const startAngle = -Math.PI / 2;
     const endAngle = startAngle - Math.sign(gyroZ) * arcLength;
     context.beginPath();
+    context.moveTo(geometry.centerX, geometry.centerY);
     context.arc(geometry.centerX, geometry.centerY, geometry.radius, startAngle, endAngle, gyroZ > 0);
-    context.strokeStyle = _computeArcColor(Math.abs(gyroZ));
-    context.lineWidth = 6;
-    context.stroke();
+    context.closePath();
+    context.fillStyle = SECTOR_COLOR;
+    context.fill();
 }
 
 /**
