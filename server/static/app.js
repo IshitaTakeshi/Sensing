@@ -6,7 +6,7 @@ import { initYawCompass, updateYawCompass } from './yaw-compass.js';
 
 function _handleImu(message) {
     updateAccelScatter(message.accel_x, message.accel_y);
-    updateYawCompass(message.gyro_z, message.timestamp_ns);
+    updateYawCompass(message.gyro_z);
 }
 
 function _dispatchMessage(message) {
