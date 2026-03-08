@@ -1,4 +1,4 @@
-/* Yaw rate compass — instantaneous rate arc. */
+/* Yaw rate compass — instantaneous rate sector. */
 
 import { drawCompassRing, drawRateArc, updateReadout } from './yaw-compass-draw.js';
 
@@ -66,7 +66,7 @@ function _redraw(gyroZ) {
     if (context == null) return;
     const geometry = _computeCompassGeometry(_canvas);
     context.clearRect(0, 0, _canvas.clientWidth, _canvas.clientHeight);
-    drawCompassRing(context, geometry);
     drawRateArc(context, geometry, gyroZ);
+    drawCompassRing(context, geometry);
     updateReadout(_readoutElement, gyroZ);
 }
